@@ -27,7 +27,7 @@ class LogHandler(FileSystemEventHandler):
 
         if TRIGGER_STRING in new_data:
             print("Run ended detected!")
-            time.sleep(3)
+            time.sleep(2)
             take_screenshot()
 
 
