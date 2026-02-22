@@ -6,7 +6,7 @@ from mss import mss
 from PIL import Image
 
 LOG_PATH = r"C:\Users\rafa\AppData\LocalLow\Tempo Storm\The Bazaar\Player.log"
-TRIGGER_STRING = "[EndOfRunScreenController]"
+TRIGGER_STRING = "Starting card reveal sequence"
 SCREENSHOT_DIR = "screenshots"
 
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
@@ -27,7 +27,7 @@ class LogHandler(FileSystemEventHandler):
 
         if TRIGGER_STRING in new_data:
             print("Run ended detected!")
-            time.sleep(2)
+            time.sleep(1.5)
             take_screenshot()
 
 
