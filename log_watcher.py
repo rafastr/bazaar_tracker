@@ -1,128 +1,66 @@
-import time
 import os
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+import time
 from mss import mss
 from PIL import Image
 
-LOG_PATH = r"C:\Users\rafa\AppData\LocalLow\Tempo Storm\The Bazaar\Player.log"
+LOG_PATH = os.path.join(
+    os.environ["USERPROFILE"],
+    r"AppData\LocalLow\Tempo Storm\The Bazaar\Player.log"
+)
+
+# consts
 TRIGGER_STRING = "Starting card reveal sequence"
 SCREENSHOT_DIR = "screenshots"
-
-# Tuning knobs
-TRIGGER_DELAY_SECONDS = 1.5     # wait after trigger before screenshot
-TRIGGER_COOLDOWN_SECONDS = 10.0 # ignore repeated triggers within this time window
+TRIGGER_DELAY_SECONDS = 1.5
+TRIGGER_COOLDOWN_SECONDS = 10.0
+POLL_INTERVAL_SECONDS = 0.5
 
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
-
 def take_screenshot():
     with mss() as sct:
-        monitor = sct.monitors[1]  # primary monitor
+        monitor = sct.monitors[1]
         shot = sct.grab(monitor)
         img = Image.frombytes("RGB", shot.size, shot.rgb)
-        timestamp = int(time.time())
-        path = os.path.join(SCREENSHOT_DIR, f"run_{timestamp}.png")
+        path = os.path.join(SCREENSHOT_DIR, f"run_{int(time.time())}.png")
         img.save(path)
         print(f"Screenshot saved: {path}")
 
+def main():
+    last_pos = 0
+    last_trigger = 0.0
 
-class LogHandler(FileSystemEventHandler):
-    def __init__(self, log_path: str):
-        self.log_path = os.path.normpath(log_path)
-        self.last_position = 0
-        self.last_inode = None
-        self.last_trigger_time = 0.0
+    print("Watching:", LOG_PATH)
 
-    def _safe_stat(self):
+    while True:
         try:
-            return os.stat(self.log_path)
-        except FileNotFoundError:
-            return None
+            if not os.path.exists(LOG_PATH):
+                time.sleep(POLL_INTERVAL_SECONDS)
+                continue
 
-    def _read_new(self) -> str:
-        st = self._safe_stat()
-        if st is None:
-            return ""
+            size = os.path.getsize(LOG_PATH)
+            if size < last_pos:
+                # log truncated (game restart)
+                last_pos = 0
 
-        inode = getattr(st, "st_ino", None)
-        if self.last_inode is None:
-            self.last_inode = inode
-        elif inode is not None and inode != self.last_inode:
-            # file replaced at same path
-            self.last_inode = inode
-            self.last_position = 0
+            with open(LOG_PATH, "r", encoding="utf-8", errors="ignore") as f:
+                f.seek(last_pos)
+                new_data = f.read()
+                last_pos = f.tell()
 
-        size = st.st_size
-        if size < self.last_position:
-            # file truncated (common on restart)
-            self.last_position = 0
+            if new_data and (TRIGGER_STRING in new_data):
+                now = time.time()
+                if now - last_trigger >= TRIGGER_COOLDOWN_SECONDS:
+                    last_trigger = now
+                    print("Trigger detected! Waiting...")
+                    time.sleep(TRIGGER_DELAY_SECONDS)
+                    take_screenshot()
 
-        with open(self.log_path, "r", encoding="utf-8", errors="ignore") as f:
-            f.seek(self.last_position)
-            new_data = f.read()
-            self.last_position = f.tell()
+        except Exception as e:
+            print("Error:", repr(e))
 
-        return new_data
-
-    def _cooldown_ok(self) -> bool:
-        now = time.time()
-        return (now - self.last_trigger_time) >= TRIGGER_COOLDOWN_SECONDS
-
-    def _maybe_trigger(self, new_data: str):
-        if TRIGGER_STRING not in new_data:
-            return
-
-        if not self._cooldown_ok():
-            print("Trigger detected but ignored (cooldown).")
-            return
-
-        self.last_trigger_time = time.time()
-        print("Run ended detected! Waiting before screenshot...")
-        time.sleep(TRIGGER_DELAY_SECONDS)
-        take_screenshot()
-        print("Trigger string found at", time.time())
-
-    def on_modified(self, event):
-        if os.path.normpath(event.src_path) != self.log_path:
-            return
-        new_data = self._read_new()
-        if new_data:
-            self._maybe_trigger(new_data)
-        print("File modified at", time.time())
-
-    def on_created(self, event):
-        if os.path.normpath(event.src_path) != self.log_path:
-            return
-        self.last_position = 0
-        new_data = self._read_new()
-        if new_data:
-            self._maybe_trigger(new_data)
-
-    def on_moved(self, event):
-        # sometimes log rotation/recreation triggers a move event
-        dest = getattr(event, "dest_path", None)
-        if dest and os.path.normpath(dest) == self.log_path:
-            self.last_position = 0
-            new_data = self._read_new()
-            if new_data:
-                self._maybe_trigger(new_data)
-
+        time.sleep(POLL_INTERVAL_SECONDS)
 
 if __name__ == "__main__":
-    log_dir = os.path.dirname(LOG_PATH)
-    handler = LogHandler(LOG_PATH)
+    main()
 
-    observer = Observer()
-    observer.schedule(handler, path=log_dir, recursive=False)
-    observer.start()
-
-    print("Watching log file...")
-
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
-
-    observer.join()
