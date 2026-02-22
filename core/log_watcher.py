@@ -11,7 +11,7 @@ LOG_PATH = os.path.join(
 # consts
 TRIGGER_STRING = "Starting card reveal sequence"
 SCREENSHOT_DIR = "screenshots"
-TRIGGER_DELAY_SECONDS = 1.5
+TRIGGER_DELAY_SECONDS = 2.0
 TRIGGER_COOLDOWN_SECONDS = 10.0
 POLL_INTERVAL_SECONDS = 0.5
 
