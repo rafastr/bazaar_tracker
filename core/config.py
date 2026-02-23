@@ -4,8 +4,11 @@ from typing import List, Optional
 
 @dataclass(frozen=True)
 class Settings:
-    # Log file
+    # Log file and db
     log_path: str
+    instance_map_path: str = "db/instance_map.json"
+    run_history_db_path: str = "db/run_history.sqlite3"
+
     poll_interval_seconds: float = 0.5
     log_encoding: str = "utf-8"
     log_encoding_errors: str = "ignore"
@@ -30,7 +33,7 @@ class Settings:
 def _default_log_path() -> str:
     userprofile = os.environ.get("USERPROFILE")
     if not userprofile:
-        # Best effort fallback; user can override by editing settings/log_path
+        # Can override by editing settings/log_path
         return r"Player.log"
     return os.path.join(
         userprofile,
@@ -38,7 +41,7 @@ def _default_log_path() -> str:
     )
 
 
-# Instantiate settings (edit here if you want)
+# Instantiate settings
 settings = Settings(
     log_path=_default_log_path(),
     screenshot_trigger_event_types=["RunEnd"]

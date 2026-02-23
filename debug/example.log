@@ -6,4 +6,15 @@
 [08:28:16.653] [GameSimHandler] Cards Spawned: [itm_1rSAevJ [Player] [Hand] [Socket_5] [Small] | [itm_GsI65wB [Player] [Hand] [Socket_4] [Small] | [itm_TjPgGip [Player] [Hand] [Socket_3] [Small] | [itm_vfvCR1d [Player] [Hand] [Socket_0] [Medium] | [itm_j6mBYwu [Player] [Hand] [Socket_2] [Small] | [itm_apVHH7X [Player] [Hand] [Socket_8] [Medium] | [itm_0Ak1J0N [Player] [Hand] [Socket_6] [Medium] | 
 
 
+
+[07:15:44.100] [BoardManager] Card Purchased: InstanceId: enc_U2XWPCs - TemplateId87c6a586-fea5-4bbd-9296-2b2883bcac24 - Target:OpponentSocket_5 - SectionOpponent
+
+[StartRunAppState] Run initialization finalized.
+
+[07:15:44.100] [BoardManager] Card Purchased: InstanceId: enc_U2XWPCs - TemplateId87c6a586-fea5-4bbd-9296-2b2883bcac24 - Target:OpponentSocket_5 - SectionOpponent
+
+[07:05:42.463] [BoardManager] Card Purchased: InstanceId: itm_dN8irXQ - TemplateIddc3bf5cb-45fa-46c7-9a0e-3f3bfb01697d - Target:PlayerSocket_3 - SectionPlayer
+
+[08:28:16.653] [GameSimHandler] Cards Spawned: [itm_1rSAevJ [Player] [Hand] [Socket_5] [Small] | [itm_GsI65wB [Player] [Hand] [Socket_4] [Small] | [itm_TjPgGip [Player] [Hand] [Socket_3] [Small] | [itm_vfvCR1d [Player] [Hand] [Socket_0] [Medium] | [itm_j6mBYwu [Player] [Hand] [Socket_2] [Small] | [itm_apVHH7X [Player] [Hand] [Socket_8] [Medium] | [itm_0Ak1J0N [Player] [Hand] [Socket_6] [Medium] | 
+
 Starting card reveal sequence
