@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from .events import Event
 from .run_history_db import RunHistoryDb
@@ -12,14 +12,16 @@ class RunHistorySink:
     def __init__(self, db: RunHistoryDb) -> None:
         self.db = db
 
-    def handle(self, ev: Event) -> None:
+    def handle(self, ev: Event) -> List[Event]:
         if ev.type != "FinalBoardSnapshot":
-            return
+            return []
         if not ev.board_items:
-            return
+            return []
 
         # board_items already sorted by socket
-        run_id = self.db.insert_run(ev.board_items)
+        run_id = self.db.insert_run(ev.board_items, screenshot_path=ev.screenshot_path)
 
         # print a log
         print({"type": "RunStored", "run_id": run_id, "items": len(ev.board_items)})
+
+        return []

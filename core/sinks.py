@@ -3,26 +3,27 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Optional, Set
+from typing import List, Optional, Set
 
 from .events import Event
 
 
 class Sink:
-    def handle(self, ev: Event) -> None:
-        raise NotImplementedError
+    def handle(self, ev: Event) -> List[Event]:
+        return []
 
 
 class StdoutSink(Sink):
     def __init__(self, pretty: bool = False) -> None:
         self.pretty = pretty
 
-    def handle(self, ev: Event) -> None:
+    def handle(self, ev: Event) -> List[Event]:
         d = ev.to_dict()
         if self.pretty:
             print(json.dumps(d, ensure_ascii=False, indent=2))
         else:
             print(json.dumps(d, ensure_ascii=False))
+        return []
 
 
 class ScreenshotSink(Sink):
@@ -32,7 +33,7 @@ class ScreenshotSink(Sink):
         out_dir: str,
         monitor_index: int = 1,
         delay_seconds: float = 2.0,
-        cooldown_seconds: float = 10.0,
+        cooldown_seconds: float = 5.0,
         trigger_event_types: Optional[Set[str]] = None,
     ) -> None:
         self.enabled = enabled
@@ -47,24 +48,30 @@ class ScreenshotSink(Sink):
         if self.enabled:
             os.makedirs(self.out_dir, exist_ok=True)
 
-    def handle(self, ev: Event) -> None:
+    def handle(self, ev: Event) -> List[Event]:
         if not self.enabled:
-            return
+            return []
 
         if ev.type not in self.trigger_event_types:
-            return
+            return []
 
         now = time.time()
         if now - self._last_shot_ts < self.cooldown_seconds:
-            return
+            return []
 
         self._last_shot_ts = now
         if self.delay_seconds > 0:
             time.sleep(self.delay_seconds)
 
-        self._take_screenshot(prefix=ev.type)
+        path = self._take_screenshot(prefix=ev.type)
+        if not path:
+            return []
 
-    def _take_screenshot(self, prefix: str = "shot") -> None:
+        # Emit event so state/db can attach it to the run sql
+        return [Event(type="ScreenshotSaved", raw=ev.raw, screenshot_path=path)]
+
+
+    def _take_screenshot(self, prefix: str = "shot") -> Optional[str]:
         try:
             from mss import mss
             from PIL import Image
@@ -79,7 +86,7 @@ class ScreenshotSink(Sink):
             monitors = sct.monitors
             idx = self.monitor_index
 
-            # clamp index safely
+            # clamp index
             if idx < 1 or idx >= len(monitors):
                 idx = 1
 
@@ -92,3 +99,4 @@ class ScreenshotSink(Sink):
             img.save(path)
 
             print(json.dumps({"type": "ScreenshotSaved", "path": path}, ensure_ascii=False))
+            return path

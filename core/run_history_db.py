@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class RunHistoryDb:
@@ -28,7 +28,8 @@ class RunHistoryDb:
             """
             CREATE TABLE IF NOT EXISTS runs (
                 run_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ended_at_unix INTEGER NOT NULL
+                ended_at_unix INTEGER NOT NULL,
+                screenshot_path TEXT
             )
             """
         )
@@ -52,7 +53,8 @@ class RunHistoryDb:
 
         self.conn.commit()
 
-    def insert_run(self, board_items_sorted: List[Dict[str, Any]]) -> int:
+    def insert_run(self, board_items_sorted: List[Dict[str, Any]], screenshot_path: Optional[str]) -> int:
+
         """
         board_items_sorted: list of dicts in socket order:
           {"socket_number": int, "size": str, "template_id": str, ...}
@@ -62,7 +64,10 @@ class RunHistoryDb:
         ended_at = int(time.time())
         cur = self.conn.cursor()
 
-        cur.execute("INSERT INTO runs (ended_at_unix) VALUES (?)", (ended_at,))
+        cur.execute(
+            "INSERT INTO runs (ended_at_unix, screenshot_path) VALUES (?, ?)",
+            (ended_at, screenshot_path),
+        )
         lastrowid = cur.lastrowid
         if lastrowid is None:
             raise RuntimeError("Failed to get lastrowid after inserting run")
@@ -74,7 +79,7 @@ class RunHistoryDb:
             template_id = it.get("template_id")
             size = it.get("size")
 
-            rows.append((run_id, socket, str(template_id), str(size)))
+            rows.append((run_id, socket, template_id, str(size)))
 
         cur.executemany(
             """

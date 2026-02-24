@@ -23,6 +23,8 @@ class RunState:
         self.in_run: bool = False
         self.last_player_board: Optional[List[Dict[str, Any]]] = None
 
+        self.last_screenshot_path: Optional[str] = None
+
     def _clear_active_run_cache(self) -> None:
         self.instance_map.clear()
         self.store.save(self.instance_map)
@@ -55,6 +57,10 @@ class RunState:
             self.last_player_board = ev.board_items
             return
 
+        if ev.type == "ScreenshotSaved" and ev.screenshot_path:
+            self.last_screenshot_path = ev.screenshot_path
+            return
+
         if ev.type == "RunEnd":
             if self.last_player_board:
                 enriched = []
@@ -73,6 +79,7 @@ class RunState:
                     type="FinalBoardSnapshot",
                     raw=ev.raw,
                     board_items=sorted_items,
+                    screenshot_path=self.last_screenshot_path,
                     method="last_seen_gamesimhandler_snapshot + instance_map_join",
                     confidence=1.0,
                 )
@@ -81,4 +88,5 @@ class RunState:
             self.in_run = False
             self.last_player_board = None
             self._clear_active_run_cache()
+            self.last_screenshot_path = None
             return

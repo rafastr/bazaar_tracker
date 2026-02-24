@@ -16,6 +16,8 @@ class Event:
     # Board snapshot
     board_items: Optional[List[Dict[str, Any]]] = None
 
+    screenshot_path: Optional[str] = None
+
     # misc
     method: Optional[str] = None
     confidence: Optional[float] = None

@@ -2,15 +2,3 @@ mss==10.1.0
 pillow==12.1.1
 watchdog==6.0.0
 
-To reproduce env.
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-
-Every time you work:
-
-cd bazaar-tracker
-source .venv/bin/activate
-
-When done:
-deactivate
