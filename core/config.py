@@ -8,6 +8,7 @@ class Settings:
     log_path: str
     instance_map_path: str = "db/instance_map.json"
     run_history_db_path: str = "db/run_history.sqlite3"
+    templates_db_path: str = "db/templates.sqlite3"
 
     poll_interval_seconds: float = 0.5
     log_encoding: str = "utf-8"
