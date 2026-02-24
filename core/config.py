@@ -7,6 +7,7 @@ class Settings:
     # Log file and db
     log_path: str
     instance_map_path: str = "db/instance_map.json"
+    run_meta_path: str = "db/run_meta.json"
     run_history_db_path: str = "db/run_history.sqlite3"
     templates_db_path: str = "db/templates.sqlite3"
 

@@ -56,7 +56,7 @@ def get_run_board(
     try:
         cur = rh.cursor()
         cur.execute(
-            "SELECT run_id, ended_at_unix, screenshot_path FROM runs WHERE run_id = ?",
+            "SELECT run_id, ended_at_unix, screenshot_path, hero, rank FROM runs WHERE run_id = ?",
             (run_id,),
         )
         run_row = cur.fetchone()
@@ -106,7 +106,8 @@ def get_run_board(
         return {
             "run_id": run_row["run_id"],
             "ended_at_unix": run_row["ended_at_unix"],
-            "screenshot_path": run_row["screenshot_path"],
+            "hero": run_row["hero"],
+            "rank": run_row["rank"],           "screenshot_path": run_row["screenshot_path"],
             "items": resolved_items,
         }
     finally:

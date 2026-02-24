@@ -13,6 +13,9 @@ class Event:
     template_id: Optional[str] = None
     instance_id: Optional[str] = None
 
+    hero: Optional[str] = None
+    rank: Optional[int] = None
+
     # Board snapshot
     board_items: Optional[List[Dict[str, Any]]] = None
 

@@ -4,6 +4,7 @@ from typing import Dict, Iterable, List, Any, Optional
 
 from .events import Event
 from .instance_store import InstanceStore
+from .run_meta_store import RunMetaStore
 
 
 class RunState:
@@ -14,11 +15,14 @@ class RunState:
     - Not keep completed-run data.
     """
 
-    def __init__(self, store: InstanceStore) -> None:
+    def __init__(self, store: InstanceStore, meta_store: RunMetaStore) -> None:
         self.store = store
+        self.meta_store = meta_store
+
 
         # Persisted across sessions for an ongoing run
         self.instance_map: Dict[str, str] = self.store.load()
+        self.current_hero: Optional[str] = self.meta_store.get_hero()
 
         self.in_run: bool = False
         self.last_player_board: Optional[List[Dict[str, Any]]] = None
@@ -28,6 +32,9 @@ class RunState:
     def _clear_active_run_cache(self) -> None:
         self.instance_map.clear()
         self.store.save(self.instance_map)
+        self.current_hero = None
+        self.meta_store.clear()
+
 
     def handle(self, ev: Event) -> Iterable[Event]:
         # always pass through
@@ -37,6 +44,12 @@ class RunState:
             # Don't clear instance_map here: run may be resuming and log may have reset.
             self.in_run = True
             self.last_player_board = None
+            self.last_screenshot_path = None
+            return
+
+        if ev.type == "HeroDetected" and ev.hero:
+            self.current_hero = ev.hero
+            self.meta_store.set_hero(ev.hero)
             return
 
         # Auto-enter run if tracker started mid-run
@@ -80,6 +93,7 @@ class RunState:
                     raw=ev.raw,
                     board_items=sorted_items,
                     screenshot_path=self.last_screenshot_path,
+                    hero=self.current_hero,
                     method="last_seen_gamesimhandler_snapshot + instance_map_join",
                     confidence=1.0,
                 )

@@ -29,7 +29,12 @@ class RunHistoryDb:
             CREATE TABLE IF NOT EXISTS runs (
                 run_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ended_at_unix INTEGER NOT NULL,
-                screenshot_path TEXT
+                screenshot_path TEXT,
+                hero TEXT,
+                rank INTEGER,
+                metrics_json TEXT,
+                is_confirmed INTEGER DEFAULT 0,
+                notes TEXT
             )
             """
         )
@@ -51,9 +56,26 @@ class RunHistoryDb:
             "CREATE INDEX IF NOT EXISTS idx_run_items_template_id ON run_items(template_id)"
         )
 
+        self._ensure_column("runs", "hero TEXT")
+        self._ensure_column("runs", "rank INTEGER")
+        self._ensure_column("runs", "metrics_json TEXT")
+        self._ensure_column("runs", "is_confirmed INTEGER DEFAULT 0")
+        self._ensure_column("runs", "notes TEXT")
+
         self.conn.commit()
 
-    def insert_run(self, board_items_sorted: List[Dict[str, Any]], screenshot_path: Optional[str]) -> int:
+
+    def _ensure_column(self, table: str, coldef: str) -> None:
+        cur = self.conn.cursor()
+        try:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {coldef}")
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            # column probably exists
+            pass
+
+
+    def insert_run(self, board_items_sorted, screenshot_path: Optional[str], hero: Optional[str]) -> int:
 
         """
         board_items_sorted: list of dicts in socket order:
@@ -65,8 +87,8 @@ class RunHistoryDb:
         cur = self.conn.cursor()
 
         cur.execute(
-            "INSERT INTO runs (ended_at_unix, screenshot_path) VALUES (?, ?)",
-            (ended_at, screenshot_path),
+            "INSERT INTO runs (ended_at_unix, screenshot_path, hero) VALUES (?, ?, ?)",
+            (ended_at, screenshot_path, hero),
         )
         lastrowid = cur.lastrowid
         if lastrowid is None:
@@ -91,3 +113,8 @@ class RunHistoryDb:
 
         self.conn.commit()
         return run_id
+
+    def update_run_rank(self, run_id: int, rank: int) -> None:
+        cur = self.conn.cursor()
+        cur.execute("UPDATE runs SET rank = ? WHERE run_id = ?", (rank, run_id))
+        self.conn.commit()

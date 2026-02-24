@@ -13,6 +13,9 @@ class LogParser:
     # GUID matcher (canonical 8-4-4-4-12)
     _GUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 
+    HERO_LINE_RE = re.compile(r"\[SocketBehavior\] Initializing Socket Connection:.*\| Hero: \[(?P<hero>[^\]]+)\]")
+    RANK_LINE_RE = re.compile(r"Changing leaderboard position from \d+ to (?P<rank>\d+)")
+
     # Save instance it of items on purchase
     _re_item_purchase = re.compile(
         rf"Card Purchased:\s*InstanceId:\s*(?P<iid>itm_[A-Za-z0-9_]+)\s*-\s*TemplateId(?P<tid>{_GUID})\b",
@@ -42,6 +45,14 @@ class LogParser:
         if self.RUN_START_MARKER in line:
             return Event(type="RunStart", raw=raw)
 
+        m = self.HERO_LINE_RE.search(line)
+        if m:
+            hero = m.group("hero").strip()
+            return Event(type="HeroDetected", raw=raw, hero=hero)
+
+        m = self.RANK_LINE_RE.search(line)
+        if m:
+            return Event(type="RankUpdated", raw=raw, rank=int(m.group("rank")))
         if self.RUN_END_MARKER in line:
             return Event(type="RunEnd", raw=raw)
 

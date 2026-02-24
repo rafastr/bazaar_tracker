@@ -10,6 +10,7 @@ from core.sinks import StdoutSink, ScreenshotSink
 from core.instance_store import InstanceStore
 from core.run_history_db import RunHistoryDb
 from core.run_history_sink import RunHistorySink
+from core.run_meta_store import RunMetaStore
 from core.run_viewer import list_runs, get_run_board, get_last_run_id
 
 
@@ -54,6 +55,27 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def print_run(run: dict) -> None:
+    ts = datetime.datetime.fromtimestamp(run["ended_at_unix"])
+    print(f'Run {run["run_id"]} ended_at={ts}')
+
+    hero = run.get("hero") or "(unknown)"
+    rank = run.get("rank")
+    rank_s = str(rank) if rank is not None else "(unknown)"
+
+    print(f"Hero: {hero}")
+    print(f"Rank: {rank_s}")
+    print(f'Screenshot: {run["screenshot_path"]}')
+    print("Board:")
+
+    for it in run["items"]:
+        sock = it["socket_number"]
+        size = it["size"]
+        name = it["name"] or "(unknown template)"
+        tid = it["template_id"] or "NULL"
+        print(f"  Socket {sock}: {name} | {size} | {tid}")
+
+
 def main() -> None:
     args = parse_args()
 
@@ -66,16 +88,7 @@ def main() -> None:
     
     if args.show_run is not None:
         run = get_run_board(settings.run_history_db_path, settings.templates_db_path, args.show_run)
-        ts = datetime.datetime.fromtimestamp(run["ended_at_unix"])
-        print(f'Run {run["run_id"]} ended_at={ts}')
-        print(f'Screenshot: {run["screenshot_path"]}')
-        print("Board:")
-        for it in run["items"]:
-            sock = it["socket_number"]
-            size = it["size"]
-            name = it["name"] or "(unknown template)"
-            tid = it["template_id"] or "NULL"
-            print(f"  Socket {sock}: {name} | {size} | {tid}")
+        print_run(run)
         return
 
     if args.last_run:
@@ -89,17 +102,7 @@ def main() -> None:
             settings.templates_db_path,
             run_id,
         )
-
-        ts = datetime.datetime.fromtimestamp(run["ended_at_unix"])
-        print(f'Run {run["run_id"]} ended_at={ts}')
-        print(f'Screenshot: {run["screenshot_path"]}')
-        print("Board:")
-        for it in run["items"]:
-            sock = it["socket_number"]
-            size = it["size"]
-            name = it["name"] or "(unknown template)"
-            tid = it["template_id"] or "NULL"
-            print(f"  Socket {sock}: {name} | {size} | {tid}")
+        print_run(run)
         return
 
     # Normal watch mode
@@ -113,12 +116,13 @@ def main() -> None:
     print("Instance cache:", settings.instance_map_path)
     print("Run history DB:", settings.run_history_db_path)
 
-    # JSON cache (instance_id -> template_id)
+    # JSON cache (instance_id -> template_id) and hero being played
     store = InstanceStore(settings.instance_map_path)
+    meta_store = RunMetaStore(settings.run_meta_path)
     run_db = RunHistoryDb(settings.run_history_db_path)
 
     parser = LogParser()
-    state = RunState(store=store)
+    state = RunState(store=store, meta_store=meta_store)
 
     screenshot_sink = ScreenshotSink(
         enabled=screenshots_enabled,
