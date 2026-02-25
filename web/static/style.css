@@ -1,0 +1,60 @@
+body { font-family: sans-serif; margin: 0; background: #0b0b0f; color: #e9e9ef; }
+a { color: #9ad; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.brand { font-weight: 700; font-size: 18px; }
+.nav a { margin-left: 12px; }
+
+h1, h2 { margin: 16px 0 8px; }
+
+.table { width: 100%; border-collapse: collapse; background: #141421; border-radius: 10px; overflow: hidden; }
+.table th, .table td { padding: 10px; border-bottom: 1px solid #2b2b3a; }
+.table th { text-align: left; background: #1b1b2c; }
+
+.run-header .meta { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+
+.inline { display: inline-flex; gap: 8px; align-items: center; }
+input, textarea { background: #11111a; color: #e9e9ef; border: 1px solid #2b2b3a; border-radius: 8px; padding: 8px; }
+button { background: #2a2a44; color: #e9e9ef; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+button:hover { background: #35355a; }
+button.danger { background: #5a2a2a; }
+button.danger:hover { background: #6b3333; }
+
+.notes { margin-top: 10px; display: grid; gap: 6px; max-width: 700px; }
+
+.shot img { max-width: 100%; border-radius: 12px; border: 1px solid #2b2b3a; }
+
+.board {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 8px;
+}
+
+.card {
+  background: #141421;
+  border: 1px solid #2b2b3a;
+  border-radius: 12px;
+  padding: 10px;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-name { font-weight: 700; }
+.card-sub { opacity: 0.7; font-size: 12px; margin-top: 4px; }
+
+.card-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.card-actions form { margin: 0; }
+
+.edit-panel { margin-top: 10px; border-top: 1px solid #2b2b3a; padding-top: 10px; }
+.results { margin-top: 8px; display: grid; gap: 6px; max-height: 220px; overflow: auto; }
+.result { padding: 6px; border: 1px solid #2b2b3a; border-radius: 8px; cursor: pointer; }
+.result:hover { background: #1b1b2c; }
+.result.selected { outline: 2px solid #7aa; }
+.hint { opacity: 0.7; }

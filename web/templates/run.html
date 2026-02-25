@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="run-header">
+    <h1>Run {{ run.run_id }}</h1>
+
+    <div class="meta">
+      <div><b>Hero:</b> {{ run.hero_effective or "(unknown)" }}</div>
+      <div><b>Rank:</b> {{ run.rank_effective if run.rank_effective is not none else "(unknown)" }}</div>
+      <div><b>Confirmed:</b> {{ "yes" if run.is_confirmed else "no" }}</div>
+    </div>
+
+    <div class="actions">
+      <form method="post" action="{{ url_for('run_confirm', run_id=run.run_id) }}">
+        <input type="hidden" name="confirmed" value="{{ 0 if run.is_confirmed else 1 }}">
+        <button type="submit">{{ "Unconfirm" if run.is_confirmed else "Confirm" }}</button>
+      </form>
+
+      <form method="post" action="{{ url_for('run_hero_override', run_id=run.run_id) }}" class="inline">
+        <label>Hero override:</label>
+        <input name="hero" placeholder="e.g. Vanessa" />
+        <button type="submit">Save</button>
+      </form>
+    </div>
+
+    <form method="post" action="{{ url_for('run_notes', run_id=run.run_id) }}" class="notes">
+      <label><b>Notes</b></label>
+      <textarea name="notes" rows="3">{{ run.notes or "" }}</textarea>
+      <button type="submit">Save notes</button>
+    </form>
+  </div>
+
+  <h2>Screenshot</h2>
+  {% if run.screenshot_path %}
+    <div class="shot">
+      <img src="{{ url_for('screenshot', run_id=run.run_id) }}" alt="Run screenshot" />
+    </div>
+  {% else %}
+    <p>No screenshot stored.</p>
+  {% endif %}
+
+  <h2>Final board</h2>
+
+  <div class="board">
+    {% for block in grid %}
+      <div class="card" style="grid-column: {{ block.start + 1 }} / span {{ block.span }};">
+        <div class="card-name">{{ block.name }}</div>
+        <div class="card-sub">{{ block.size }}</div>
+
+        <div class="card-actions">
+          <button type="button" class="edit-btn" data-socket="{{ block.socket_number }}">Edit</button>
+
+          <form method="post" action="{{ url_for('item_clear', run_id=run.run_id) }}">
+            <input type="hidden" name="socket" value="{{ block.socket_number }}" />
+            <button type="submit" class="danger">Clear</button>
+          </form>
+        </div>
+
+        <div class="edit-panel" id="edit-{{ block.socket_number }}" hidden>
+          <input type="text" class="q" placeholder="Search item name..." />
+          <div class="results"></div>
+
+          <form method="post" action="{{ url_for('item_set', run_id=run.run_id) }}" class="set-form">
+            <input type="hidden" name="socket" value="{{ block.socket_number }}" />
+            <input type="hidden" name="template_id" class="template_id" />
+            <button type="submit">Apply selected</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    // Minimal JS: search templates and apply to a socket
+    document.querySelectorAll(".edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const sock = btn.dataset.socket;
+        const panel = document.getElementById("edit-" + sock);
+        panel.hidden = !panel.hidden;
+
+        if (!panel.hidden) {
+          const input = panel.querySelector(".q");
+          input.focus();
+
+          input.addEventListener("input", async () => {
+            const q = input.value.trim();
+            const resultsDiv = panel.querySelector(".results");
+            resultsDiv.innerHTML = "";
+            if (!q) return;
+
+            const res = await fetch("/api/templates?q=" + encodeURIComponent(q));
+            const data = await res.json();
+
+            data.forEach(row => {
+              const el = document.createElement("div");
+              el.className = "result";
+              el.textContent = row.name + " (" + row.template_id + ")";
+              el.addEventListener("click", () => {
+                panel.querySelector(".template_id").value = row.template_id;
+                resultsDiv.querySelectorAll(".result").forEach(x => x.classList.remove("selected"));
+                el.classList.add("selected");
+              });
+              resultsDiv.appendChild(el);
+            });
+          }, { once: true });
+        }
+      });
+    });
+  </script>
+{% endblock %}

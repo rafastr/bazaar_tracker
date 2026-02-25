@@ -1,5 +1,4 @@
 
-
 Mono path[0] = 'C:/Program Files (x86)/Steam/steamapps/common/The Bazaar/TheBazaar_Data/Managed'
 Mono config path = 'C:/Program Files (x86)/Steam/steamapps/common/The Bazaar/MonoBleedingEdge/etc'
 Input System module state changed to: Initialized.
@@ -25,7 +24,6 @@ Begin MonoManager ReloadAssembly
 [Physics::Module] Integration Version: 1.0.0
 [Physics::Module] Threading Mode: Multi-Threaded
 <RI> Initializing input.
-
 Using Windows.Gaming.Input
 UnloadTime: 0.915900 ms
 [06:57:32.121] [AppLoader] Register Systems
@@ -2616,4 +2614,3 @@ Input System polling thread exited.
 Input System module state changed to: Shutdown.
 Internal: There are remaining Allocations on the JobTempAlloc. This is a leak, and will impact performance
 To Debug, run app with -diag-job-temp-memory-leak-validation cmd line argument. This will output the callstacks of the leaked allocations.
-
