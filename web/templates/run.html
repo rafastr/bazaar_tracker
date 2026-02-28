@@ -83,16 +83,17 @@
             Edit
           </button>
 
-          <div class="edit-panel" id="edit-{{ block.socket_number }}" hidden>
+          <div class="edit-panel" id="edit-{{ block.socket_number }}" data-size="{{ block.size }}" hidden>
             <input type="text" class="q" placeholder="Search item name..." />
             <div class="results"></div>
 
             <form method="post" action="{{ url_for('item_set', run_id=run.run_id) }}" class="set-form">
               <input type="hidden" name="socket" value="{{ block.socket_number }}" />
               <input type="hidden" name="template_id" class="template_id" />
-              <input type="hidden" name="return_edit" value="{{ 1 if edit_mode else 0 }}" />
-              <button type="submit">Apply</button>
+              <input type="hidden" name="return_edit" value="1" />
             </form>
+
+
           </div>
         {% endif %}
       </div>
@@ -139,39 +140,104 @@
 
   {% if edit_mode %}
   <script>
+    function renderResults(panel, data) {
+      const resultsDiv = panel.querySelector(".results");
+      resultsDiv.innerHTML = "";
+    
+      const state = panel._state || { idx: -1, items: [] };
+      state.items = data;
+      state.idx = data.length ? 0 : -1;
+    
+      data.forEach((row, i) => {
+        const el = document.createElement("div");
+        el.className = "result";
+        el.textContent = row.name; // ✅ names only
+    
+        el.addEventListener("mousedown", (e) => {
+          // mousedown so it fires before input loses focus
+          e.preventDefault();
+          applyTemplate(panel, row.template_id);
+        });
+    
+        resultsDiv.appendChild(el);
+      });
+
+      highlight(panel);
+    }
+    
+    function highlight(panel) {
+      const resultsDiv = panel.querySelector(".results");
+      const els = Array.from(resultsDiv.querySelectorAll(".result"));
+      els.forEach((el, i) => el.classList.toggle("selected", i === panel._state.idx));
+    }
+    
+    function applyTemplate(panel, templateId) {
+      panel.querySelector(".template_id").value = templateId;
+      const form = panel.querySelector("form.set-form");
+      form.submit(); // ✅ auto-apply
+    }
+    
+    async function fetchTemplates(panel, q) {
+      const size = (panel.dataset.size || "").trim();
+      const res = await fetch("/api/templates?q=" + encodeURIComponent(q) + "&size=" + encodeURIComponent(size));
+      return await res.json();
+    }
+
     document.querySelectorAll(".edit-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const sock = btn.dataset.socket;
         const panel = document.getElementById("edit-" + sock);
         panel.hidden = !panel.hidden;
-  
+    
         if (!panel.hidden) {
           const input = panel.querySelector(".q");
           input.focus();
-  
+    
           if (!panel.dataset.bound) {
             panel.dataset.bound = "1";
-  
+            panel._state = { idx: -1, items: [] };
+    
             input.addEventListener("input", async () => {
               const q = input.value.trim();
-              const resultsDiv = panel.querySelector(".results");
-              resultsDiv.innerHTML = "";
-              if (!q) return;
-  
-              const res = await fetch("/api/templates?q=" + encodeURIComponent(q));
-              const data = await res.json();
-  
-              data.forEach(row => {
-                const el = document.createElement("div");
-                el.className = "result";
-                el.textContent = row.name + " (" + row.template_id + ")";
-                el.addEventListener("click", () => {
-                  panel.querySelector(".template_id").value = row.template_id;
-                  resultsDiv.querySelectorAll(".result").forEach(x => x.classList.remove("selected"));
-                  el.classList.add("selected");
-                });
-                resultsDiv.appendChild(el);
-              });
+              if (!q) {
+                panel.querySelector(".results").innerHTML = "";
+                panel._state = { idx: -1, items: [] };
+                return;
+              }
+              const data = await fetchTemplates(panel, q);
+              renderResults(panel, data);
+            });
+    
+            input.addEventListener("keydown", (e) => {
+              const state = panel._state || { idx: -1, items: [] };
+              if (!state.items.length) return;
+    
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                state.idx = Math.min(state.idx + 1, state.items.length - 1);
+                panel._state = state;
+                highlight(panel);
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                state.idx = Math.max(state.idx - 1, 0);
+                panel._state = state;
+                highlight(panel);
+              } else if (e.key === "Enter") {
+                // ✅ Enter applies highlighted
+                if (state.idx >= 0) {
+                  e.preventDefault();
+                  applyTemplate(panel, state.items[state.idx].template_id);
+                }
+              } else if (e.key === "Tab") {
+                // ✅ Tab should not jump into results div; either apply highlighted or let tab move normally
+                if (state.idx >= 0) {
+                  e.preventDefault();
+                  applyTemplate(panel, state.items[state.idx].template_id);
+                }
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                panel.hidden = true;
+              }
             });
           }
         }

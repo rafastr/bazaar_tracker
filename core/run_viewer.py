@@ -204,22 +204,94 @@ def get_run_board(
         rh.close()
         td.close()
 
+def search_templates(
+    templates_db_path: str,
+    q: str,
+    limit: int = 8,
+    size: str = "",
+) -> List[Dict[str, Any]]:
+    import re
+    from difflib import SequenceMatcher
 
-def search_templates(templates_db_path: str, q: str, limit: int = 20) -> List[Dict[str, Any]]:
+    def norm(s: str) -> str:
+        return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+    def score(query: str, name: str) -> float:
+        query = norm(query)
+        name_n = norm(name)
+        if not query or not name_n:
+            return 0.0
+        if name_n.startswith(query):
+            return 3.0
+        if query in name_n:
+            return 2.0
+        return SequenceMatcher(None, query, name_n).ratio()
+
+    q = (q or "").strip()
+    if not q:
+        return []
+
+    size = (size or "").strip().lower()
+    if size not in ("small", "medium", "large"):
+        size = ""
+
     conn = _connect(templates_db_path)
     try:
         cur = conn.cursor()
-        like = f"%{q}%"
+
+        qn = norm(q)
+        like = f"%{qn}%"
+
+        params = [like]
+        size_clause = ""
+        if size:
+            size_clause = " AND LOWER(size) = ? "
+            params.append(size.lower())
+
         cur.execute(
-            """
-            SELECT template_id, name, size, art_key
+            f"""
+            SELECT template_id, name, size
             FROM templates
-            WHERE name LIKE ?
-            ORDER BY name ASC
-            LIMIT ?
+            WHERE name IS NOT NULL
+              AND LOWER(name) LIKE ?
+              {size_clause}
+            LIMIT 250
             """,
-            (like, limit),
+            tuple(params),
         )
-        return [dict(r) for r in cur.fetchall()]
+        rows = cur.fetchall()
+
+        # Fallback if LIKE returns nothing
+        if not rows:
+            params2 = []
+            size_clause2 = ""
+            if size:
+                size_clause2 = " AND LOWER(size) = ? "
+                params2.append(size.lower())
+
+            cur.execute(
+                f"""
+                SELECT template_id, name, size
+                FROM templates
+                WHERE name IS NOT NULL
+                  {size_clause2}
+                LIMIT 250
+                """,
+                tuple(params2),
+            )
+            rows = cur.fetchall()
+
+        scored = []
+        for r in rows:
+            name = r["name"] or ""
+            s = score(q, name)
+            if s > 0:
+                scored.append((s, name, r["template_id"], r["size"]))
+
+        scored.sort(key=lambda t: (-t[0], len(t[1]), t[1].lower()))
+        top = scored[: int(limit)]
+
+        return [{"template_id": tid, "name": name, "size": sz} for _, name, tid, sz in top]
+
     finally:
         conn.close()

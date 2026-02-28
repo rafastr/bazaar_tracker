@@ -188,21 +188,41 @@ button.primary {
   margin-top: 10px;
   border-top: 1px solid #2b2b3a;
   padding-top: 10px;
+  position: relative;
 }
 
 .results {
-  margin-top: 8px;
+  position: absolute;
+  top: 100%;
+  left: 0;
+
+  min-width: 160px;      /* wider than small items */
+  max-width: 320px;      /* prevent huge width */
+  width: max-content;    /* expand to fit content */
+
+  background: #141421;
+  border: 1px solid #2b2b3a;
+  border-radius: 8px;
+  padding: 6px;
+  margin-top: 6px;
+
   display: grid;
-  gap: 6px;
-  max-height: 220px;
-  overflow: auto;
+  gap: 4px;
+
+  z-index: 50;
+
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
 }
 
 .result {
   padding: 6px;
   border: 1px solid #2b2b3a;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
+
+
+  white-space: normal;       /* allow wrapping */
+  line-height: 1.25;
 }
 
 .result:hover { background: #1b1b2c; }

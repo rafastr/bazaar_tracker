@@ -73,8 +73,12 @@ def create_app() -> Flask:
         q = (request.args.get("q") or "").strip()
         if not q:
             return jsonify([])
-        rows = search_templates(settings.templates_db_path, q, limit=30)
-        # Keep payload small and UI-friendly
+    
+        size = (request.args.get("size") or "").strip().lower()
+        if size not in ("small", "medium", "large"):
+            size = ""
+    
+        rows = search_templates(settings.templates_db_path, q, limit=6, size=size)
         out = [{"template_id": r["template_id"], "name": r["name"], "size": r.get("size")} for r in rows]
         return jsonify(out)
 
