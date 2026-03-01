@@ -3,4 +3,6 @@ pillow==12.1.1
 watchdog==6.0.0
 flask
 requests
+pytesseract
+Pillow
 

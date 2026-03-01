@@ -51,6 +51,34 @@ class RunHistoryDb:
             """
         )
 
+        # OCR/derived metrics (safe to recompute/overwrite)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS run_metrics (
+                run_id INTEGER PRIMARY KEY,
+
+                wins INTEGER,
+                max_health INTEGER,
+                prestige INTEGER,
+                level INTEGER,
+                income INTEGER,
+                gold INTEGER,
+
+                won INTEGER,            -- 0/1
+
+                ocr_json TEXT,          -- raw OCR/debug payload
+                ocr_version TEXT,
+                updated_at_unix INTEGER NOT NULL,
+
+                FOREIGN KEY (run_id) REFERENCES runs(run_id)
+            )
+            """
+        )
+
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_run_metrics_updated ON run_metrics(updated_at_unix)"
+        )
+
         # Manual overrides for run-level fields
         cur.execute(
             """
@@ -222,6 +250,82 @@ class RunHistoryDb:
 
     def set_run_notes(self, run_id: int, notes: str) -> None:
         self.upsert_run_override(run_id, notes=notes)
+
+    def upsert_run_metrics(
+        self,
+        run_id: int,
+        wins: Optional[int] = None,
+        max_health: Optional[int] = None,
+        prestige: Optional[int] = None,
+        level: Optional[int] = None,
+        income: Optional[int] = None,
+        gold: Optional[int] = None,
+        won: Optional[bool] = None,
+        ocr_json: Optional[str] = None,
+        ocr_version: Optional[str] = None,
+    ) -> None:
+        now = self._now()
+        cur = self.conn.cursor()
+    
+        cur.execute(
+            """
+            INSERT INTO run_metrics (run_id, updated_at_unix)
+            VALUES (?, ?)
+            ON CONFLICT(run_id) DO UPDATE SET updated_at_unix=excluded.updated_at_unix
+            """,
+            (int(run_id), now),
+        )
+    
+        def set_int(col: str, v: Optional[int]) -> None:
+            if v is None:
+                return
+            cur.execute(
+                f"UPDATE run_metrics SET {col}=?, updated_at_unix=? WHERE run_id=?",
+                (int(v), now, int(run_id)),
+            )
+    
+        set_int("wins", wins)
+        set_int("max_health", max_health)
+        set_int("prestige", prestige)
+        set_int("level", level)
+        set_int("income", income)
+        set_int("gold", gold)
+    
+        if won is not None:
+            cur.execute(
+                "UPDATE run_metrics SET won=?, updated_at_unix=? WHERE run_id=?",
+                (1 if won else 0, now, int(run_id)),
+            )
+    
+        if ocr_json is not None:
+            cur.execute(
+                "UPDATE run_metrics SET ocr_json=?, updated_at_unix=? WHERE run_id=?",
+                (ocr_json, now, int(run_id)),
+            )
+    
+        if ocr_version is not None:
+            cur.execute(
+                "UPDATE run_metrics SET ocr_version=?, updated_at_unix=? WHERE run_id=?",
+                (ocr_version, now, int(run_id)),
+            )
+    
+        self.conn.commit()
+    
+    
+    def get_run_metrics(self, run_id: int) -> Optional[Dict[str, Any]]:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT run_id, wins, max_health, prestige, level, income, gold, won,
+                   ocr_json, ocr_version, updated_at_unix
+            FROM run_metrics
+            WHERE run_id=?
+            """,
+            (int(run_id),),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
 
     def upsert_item_override(
         self,

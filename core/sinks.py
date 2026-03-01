@@ -32,7 +32,7 @@ class ScreenshotSink(Sink):
         enabled: bool,
         out_dir: str,
         monitor_index: int = 1,
-        delay_seconds: float = 2.0,
+        delay_seconds: float = 2.5,
         cooldown_seconds: float = 5.0,
         trigger_event_types: Optional[Set[str]] = None,
     ) -> None:
