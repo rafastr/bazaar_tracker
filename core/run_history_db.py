@@ -180,6 +180,35 @@ class RunHistoryDb:
 
         self.conn.commit()
 
+        # Achievements progress
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS achievements (
+              key TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              description TEXT NOT NULL
+            );
+            """
+        )
+
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS achievement_unlocks (
+              key TEXT NOT NULL,
+              unlocked_at_unix INTEGER NOT NULL,
+              run_id INTEGER, -- optional: which run unlocked it
+              meta_json TEXT, -- optional details
+              PRIMARY KEY (key),
+              FOREIGN KEY (run_id) REFERENCES runs(run_id)
+            );
+            """
+        )
+
+        # Seed achievement definitions so the UI always has the full list.
+        self.ensure_achievements_seeded()
+
+        self.conn.commit()
+
 
     def _ensure_column(self, table: str, coldef: str) -> None:
         cur = self.conn.cursor()
@@ -662,5 +691,342 @@ class RunHistoryDb:
                     """,
                     (tid, hero_eff, now),
                 )
-    
         self.conn.commit()
+
+    def ensure_achievements_seeded(self) -> None:
+        """
+        Inserts achievement definitions if missing.
+        Safe to call many times.
+        """
+        defs = [
+            ("hero_champion", "Hero Champion", "Win at least once with every hero."),
+            ("featherweight_win", "Featherweight Win", "Win a run using only Small items."),
+            ("middleweight_win", "Middleweight Win", "Win a run using only Medium items."),
+            ("heavyweight_win", "Heavyweight Win", "Win a run using only Large items."),
+            ("solo_carry", "Solo Carry", "Win a run with a single item on the final board."),
+            ("commoners_crown", "Commoner’s Crown", "Win a run using only Common items."),
+            ("foreign_exchange", "Foreign Exchange", "Win a run where every item is from heroes other than the hero played."),
+            ("win_streak_15", "15 Win Streak", "Reach a win streak of 15."),
+            ("grand_tour", "Grand Tour", "Win with every hero in consecutive wins (no repeats; losses break the chain)."),
+            ("collector", "Collector", "Use every item at least once."),
+            ("cross_class_collector", "Cross-Class Collector", "Use every item in a win with a hero that is not the item's origin."),
+            ("hp_millionaire", "HP Millionaire", "Win a run with 1,000,000+ Max HP."),
+            ("prestige_25", "Prestige 25", "Win a run with 25+ Prestige."),
+            ("level_20", "Level 20", "Win a run with 20+ level."),
+            ("income_25", "Income 25", "Win a run with 25+ income."),
+            ("gold_500", "Gold Hoarder", "Win a run with 500+ gold in the bank."),
+        ]
+
+        cur = self.conn.cursor()
+        cur.executemany(
+            """
+            INSERT OR IGNORE INTO achievements(key, title, description)
+            VALUES (?, ?, ?)
+            """,
+            defs,
+        )
+
+    def rebuild_achievements(self, templates_db_path: str) -> None:
+        """
+        Recompute achievement_unlocks from current DB state.
+        Deterministic + rebuildable (edits/unconfirms won't drift).
+        """
+        import json
+
+        cur = self.conn.cursor()
+        now = self._now()
+
+        # Ensure definitions exist
+        self.ensure_achievements_seeded()
+
+        # Clear unlocks
+        cur.execute("DELETE FROM achievement_unlocks")
+
+        # ---- load templates origins: template_id -> set(origin heroes), and is_common ----
+        tconn = sqlite3.connect(templates_db_path)
+        tconn.row_factory = sqlite3.Row
+        try:
+            tcur = tconn.cursor()
+            tcur.execute("SELECT template_id, heroes_json FROM templates WHERE template_id IS NOT NULL")
+            template_rows = tcur.fetchall()
+        finally:
+            tconn.close()
+
+        def parse_origin_set(heroes_json: str) -> set[str]:
+            s = (heroes_json or "").strip()
+            if not s:
+                return set()
+            try:
+                data = json.loads(s)
+            except Exception:
+                return set()
+            if isinstance(data, list):
+                vals = data
+            elif isinstance(data, dict):
+                vals = data.get("heroes", [])
+            else:
+                vals = [data]
+            out: set[str] = set()
+            for v in vals:
+                if isinstance(v, str):
+                    name = v.strip()
+                    if name:
+                        out.add(name)
+            return out
+
+        origin_by_tid: dict[str, set[str]] = {}
+        is_common_tid: dict[str, bool] = {}
+        for r in template_rows:
+            tid = (r["template_id"] or "").strip()
+            if not tid:
+                continue
+            origins = parse_origin_set(r["heroes_json"] or "")
+            origin_by_tid[tid] = origins
+            is_common_tid[tid] = any(h.lower() == "common" for h in origins) or (not origins)
+
+        # All heroes known from templates (excluding Common)
+        all_heroes: set[str] = set()
+        for origins in origin_by_tid.values():
+            for h in origins:
+                if h.strip().lower() != "common":
+                    all_heroes.add(h.strip())
+
+        # ---- get confirmed runs in order, with effective hero, and won flag ----
+        cur.execute(
+            """
+            SELECT
+              r.run_id,
+              r.ended_at_unix,
+              r.hero AS hero_base,
+              o.hero_override,
+              COALESCE(o.is_confirmed, 0) AS is_confirmed,
+              COALESCE(m.won, 0) AS won,
+              m.wins AS wins
+              m.wins AS wins,
+              m.max_health AS max_health,
+              m.prestige AS prestige,
+              m.level AS level,
+              m.income AS income,
+              m.gold AS gold
+            FROM runs r
+            LEFT JOIN run_overrides o ON o.run_id = r.run_id
+            LEFT JOIN run_metrics  m ON m.run_id = r.run_id
+            WHERE COALESCE(o.is_confirmed, 0) = 1
+            ORDER BY r.run_id ASC
+            """
+        )
+        runs = cur.fetchall()
+
+        # Helpers to load effective items for a run (template_id + size)
+        def get_effective_items(run_id: int) -> list[dict]:
+            # base
+            cur.execute(
+                "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
+                (run_id,),
+            )
+            base = {int(r["socket_number"]): {"tid": (r["template_id"] or "").strip(), "size": (r["size"] or "").strip().lower()} for r in cur.fetchall()}
+
+            # overrides
+            cur.execute(
+                "SELECT socket_number, template_id_override, size_override FROM run_item_overrides WHERE run_id=?",
+                (run_id,),
+            )
+            ov = {int(r["socket_number"]): {"tid": r["template_id_override"], "size": r["size_override"]} for r in cur.fetchall()}
+
+            out = []
+            for sock, b in base.items():
+                tid = b["tid"]
+                size = b["size"]
+
+                if sock in ov:
+                    if ov[sock]["tid"] is not None:
+                        tid = (ov[sock]["tid"] or "").strip()
+                    if ov[sock]["size"] is not None:
+                        size = (ov[sock]["size"] or "").strip().lower()
+
+                if tid:
+                    out.append({"template_id": tid, "size": size or "small"})
+            return out
+
+        def unlock(key: str, run_id: int | None = None, meta: dict | None = None) -> None:
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO achievement_unlocks(key, unlocked_at_unix, run_id, meta_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    key,
+                    now,
+                    int(run_id) if run_id is not None else None,
+                    json.dumps(meta, ensure_ascii=False) if meta else None,
+                ),
+            )
+
+        # ---- Trackers for streaks / hero coverage ----
+        heroes_won_with: set[str] = set()
+
+        # win streak of consecutive wins
+        cur_win_streak = 0
+        best_win_streak = 0
+
+        # consecutive unique-hero win chain
+        unique_chain: list[str] = []  # list of heroes in current chain
+        best_unique_chain = 0
+
+        # ---- scan runs ----
+        for rr in runs:
+            run_id = int(rr["run_id"])
+            hero_eff = (rr["hero_override"] or rr["hero_base"] or "").strip() or "(unknown)"
+            won = int(rr["won"] or 0) == 1
+
+            # streak accounting
+            if won:
+                cur_win_streak += 1
+                best_win_streak = max(best_win_streak, cur_win_streak)
+            else:
+                cur_win_streak = 0
+
+            # unique chain accounting (wins only)
+            if won:
+                if hero_eff in unique_chain:
+                    # repeat breaks chain; restart at this hero
+                    unique_chain = [hero_eff]
+                else:
+                    unique_chain.append(hero_eff)
+                best_unique_chain = max(best_unique_chain, len(unique_chain))
+            else:
+                unique_chain = []
+
+            # If not won, skip per-win achievements
+            if not won:
+                continue
+
+            max_health = rr["max_health"]
+            prestige = rr["prestige"]
+            level = rr["level"]
+            income = rr["income"]
+            gold = rr["gold"]
+            
+            # Metric-threshold achievements (wins only)
+            if isinstance(max_health, int) and max_health >= 1_000_000:
+                unlock("hp_millionaire", run_id, {"max_health": max_health})
+            
+            if isinstance(prestige, int) and prestige >= 25:
+                unlock("prestige_25", run_id, {"prestige": prestige})
+            
+            if isinstance(level, int) and level >= 20:
+                unlock("level_20", run_id, {"level": level})
+            
+            if isinstance(income, int) and income >= 25:
+                unlock("income_25", run_id, {"income": income})
+            
+            if isinstance(gold, int) and gold >= 500:
+                unlock("gold_500", run_id, {"gold": gold})
+            
+
+            # record hero win
+            if hero_eff != "(unknown)":
+                heroes_won_with.add(hero_eff)
+
+            items = get_effective_items(run_id)
+            non_empty = items[:]  # already excludes empty
+            sizes = {it["size"] for it in non_empty}
+            tids = [it["template_id"] for it in non_empty]
+
+            # ---- per-run achievements ----
+            if len(non_empty) == 1:
+                unlock("solo_carry", run_id)
+
+            if non_empty:
+                # only size X (ignore empty sockets)
+                if sizes == {"small"}:
+                    unlock("featherweight_win", run_id)
+                if sizes == {"medium"}:
+                    unlock("middleweight_win", run_id)
+                if sizes == {"large"}:
+                    unlock("heavyweight_win", run_id)
+
+                # only common items
+                all_common = all(is_common_tid.get(tid, False) for tid in tids)
+                if all_common:
+                    unlock("commoners_crown", run_id)
+
+                # foreign exchange: every non-common item must NOT belong to played hero
+                ok = True
+                for tid in tids:
+                    if is_common_tid.get(tid, False):
+                        continue
+                    origins = origin_by_tid.get(tid, set())
+                    if hero_eff in origins:
+                        ok = False
+                        break
+                if ok:
+                    unlock("foreign_exchange", run_id)
+
+        # ---- end-of-scan achievements ----
+
+        # win streak 15
+        if best_win_streak >= 15:
+            unlock("win_streak_15", None, {"best_win_streak": best_win_streak})
+
+        # hero champion (win with every hero)
+        if all_heroes and all_heroes.issubset(heroes_won_with):
+            unlock("hero_champion", None, {"heroes": sorted(all_heroes)})
+
+        # grand tour (unique-hero chain reaches all heroes)
+        # (only meaningful if you have hero list)
+        if all_heroes and best_unique_chain >= len(all_heroes):
+            unlock("grand_tour", None, {"best_unique_chain": best_unique_chain, "needed": len(all_heroes)})
+
+        # collector / cross-class collector from item checklist state
+        # We derive from templates list so it adapts as items update.
+        all_tids = [tid for tid in origin_by_tid.keys()]
+        if all_tids:
+            # Build won_any and won_other using item_hero_wins
+            cur.execute(
+                """
+                SELECT template_id, hero
+                FROM item_hero_wins
+                WHERE win_count > 0
+                """
+            )
+            rows = cur.fetchall()
+
+            winners_by_item: dict[str, set[str]] = {}
+            for r in rows:
+                tid = (r["template_id"] or "").strip()
+                h = (r["hero"] or "").strip()
+                if tid and h:
+                    winners_by_item.setdefault(tid, set()).add(h)
+
+            # collector: any hero has won with it
+            all_won_any = True
+            all_won_other = True
+            for tid in all_tids:
+                winners = winners_by_item.get(tid, set())
+                if not winners:
+                    all_won_any = False
+                    all_won_other = False
+                    break
+
+                origins = origin_by_tid.get(tid, set())
+                common = is_common_tid.get(tid, False)
+
+                if common:
+                    # your rule: any win counts as "other hero"
+                    pass
+                else:
+                    if not any(h not in origins for h in winners):
+                        all_won_other = False
+
+            if all_won_any:
+                unlock("collector", None)
+            if all_won_other:
+                unlock("cross_class_collector", None)
+
+        # ensure seeded and commit unlocks
+        self.ensure_achievements_seeded()
+        self.conn.commit()
+
+
+    

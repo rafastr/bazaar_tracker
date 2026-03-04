@@ -564,3 +564,42 @@ tr.run-row:hover { background: rgba(255,255,255,0.05); }
   .hero-stats{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hero-stat-wide{ grid-column: span 2; }
 }
+
+
+/* Achievements page */
+/* Achievements */
+.ach-mark {
+  text-align: center;
+  font-weight: 700;
+}
+
+/* highlight unlocked rows */
+tr.done {
+  background: rgba(70, 180, 90, 0.10);
+}
+
+tr.done td {
+  border-bottom-color: rgba(70, 180, 90, 0.25);
+}
+
+/* make the checkmark pop a bit */
+tr.done .ach-mark {
+  color: rgba(70, 180, 90, 0.95);
+}
+
+tr.done:hover {
+  background: rgba(70, 180, 90, 0.16);
+}
+
+.section-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.section-link:hover {
+  text-decoration: underline;
+  opacity: 0.9;
+}
+
+tr.row-link { cursor: pointer; }
+tr.row-link:hover { background: rgba(255,255,255,0.04); }

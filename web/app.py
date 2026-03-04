@@ -32,7 +32,7 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        # --- item checklist stats (existing) ---
+        # --- item checklist stats ---
         items = get_item_checklist(settings.templates_db_path, settings.run_history_db_path)
 
         total = len(items)
@@ -89,26 +89,19 @@ def create_app() -> Flask:
             hero = (r.get("hero_effective") or "(unknown)").strip() or "(unknown)"
             hero_counts[hero] = hero_counts.get(hero, 0) + 1
 
-        # load hero colors
+        # load hero colors for pie chart (so JS can draw with stable colors)
         conn = sqlite3.connect(settings.run_history_db_path)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        
         cur.execute("SELECT hero, color FROM hero_colors")
         hero_colors = {r["hero"]: r["color"] for r in cur.fetchall()}
-        
         conn.close()
-        
+
         hero_pie = []
         for h, c in sorted(hero_counts.items(), key=lambda kv: (-kv[1], kv[0].lower())):
-            hero_pie.append({
-                "hero": h,
-                "count": c,
-                "color": hero_colors.get(h)  # may be None
-            })
+            hero_pie.append({"hero": h, "count": c, "color": hero_colors.get(h)})
 
         def outcome(r: dict) -> str:
-            # if OCR not present yet, we may not know => ?
             if r.get("won") is True:
                 return "W"
             if r.get("wins") is not None:
@@ -119,7 +112,6 @@ def create_app() -> Flask:
         last10_list = [{"ch": outcome(r)} for r in last10]
         last10_str = "".join(x["ch"] for x in last10_list)
 
-        # Current streak (most recent contiguous W or L; stops on '?' or change)
         cur_type: str | None = None
         cur_len = 0
         for r in runs:
@@ -134,7 +126,6 @@ def create_app() -> Flask:
             else:
                 break
 
-        # Best win streak (contiguous W; '?' breaks)
         best_win = 0
         w_run = 0
         for r in runs:
@@ -145,11 +136,100 @@ def create_app() -> Flask:
             elif ch == "L" or ch == "?":
                 w_run = 0
 
-        streaks = {
-            "current_type": cur_type,   # "W" / "L" / None
-            "current_len": cur_len,
-            "best_win": best_win,
-        }
+        streaks = {"current_type": cur_type, "current_len": cur_len, "best_win": best_win}
+
+        # --- hero stats table (FULL hero list, even with 0 runs) ---
+        heroes = set(get_hero_list(settings.templates_db_path))  # excludes "common"
+        heroes.update(get_hero_colors(settings.run_history_db_path).keys())
+        heroes.add("(unknown)")
+        hero_list = sorted(heroes, key=lambda x: (x == "(unknown)", x.lower()))
+
+        db = _db()
+        try:
+            cur = db.conn.cursor()
+
+            cur.execute(
+                """
+                SELECT
+                  hero,
+                  SUM(cnt) AS runs,
+                  SUM(wins) AS wins,
+                  SUM(losses) AS losses,
+                  SUM(unknowns) AS unknowns,
+                  AVG(avg_wins) AS avg_wins
+                FROM (
+                  SELECT
+                    COALESCE(o.hero_override, r.hero, '(unknown)') AS hero,
+                    1 AS cnt,
+                    CASE WHEN COALESCE(m.won, 0) = 1 THEN 1 ELSE 0 END AS wins,
+                    CASE WHEN COALESCE(m.won, 0) = 0 AND m.wins IS NOT NULL THEN 1 ELSE 0 END AS losses,
+                    CASE WHEN m.wins IS NULL THEN 1 ELSE 0 END AS unknowns,
+                    CASE WHEN m.won = 1 AND m.wins IS NOT NULL THEN m.wins ELSE NULL END AS avg_wins
+                  FROM runs r
+                  LEFT JOIN run_overrides o ON o.run_id = r.run_id
+                  LEFT JOIN run_metrics  m ON m.run_id = r.run_id
+                  WHERE COALESCE(o.is_confirmed, 0) = 1
+                )
+                GROUP BY hero
+                """
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+
+            stats_by_hero: dict[str, dict] = {}
+            for r in rows:
+                hero = (r.get("hero") or "(unknown)").strip() or "(unknown)"
+                w = int(r.get("wins") or 0)
+                l = int(r.get("losses") or 0)
+                u = int(r.get("unknowns") or 0)
+                runs_n = int(r.get("runs") or 0)
+                denom = w + l  # ignore unknowns
+
+                stats_by_hero[hero] = {
+                    "hero": hero,
+                    "runs": runs_n,
+                    "wins": w,
+                    "losses": l,
+                    "unknowns": u,
+                    "winrate": (w * 100 / denom) if denom else 0.0,
+                    "avg_wins": float(r.get("avg_wins") or 0.0),
+                }
+
+            hero_stats = []
+            for hero in hero_list:
+                hero_stats.append(
+                    stats_by_hero.get(
+                        hero,
+                        {"hero": hero, "runs": 0, "wins": 0, "losses": 0, "unknowns": 0, "winrate": 0.0, "avg_wins": 0.0},
+                    )
+                )
+
+            # --- achievements list for dashboard ---
+            cur.execute(
+                """
+                SELECT
+                  a.key,
+                  a.title,
+                  a.description,
+                  u.unlocked_at_unix,
+                  u.run_id
+                FROM achievements a
+                LEFT JOIN achievement_unlocks u ON u.key = a.key
+                ORDER BY
+                  CASE WHEN u.unlocked_at_unix IS NOT NULL THEN 0 ELSE 1 END,
+                  u.unlocked_at_unix DESC,
+                  a.title COLLATE NOCASE ASC
+                """
+            )
+            ach_rows = [dict(r) for r in cur.fetchall()]
+
+        finally:
+            db.close()
+
+        ach_unlocked = sum(1 for r in ach_rows if r.get("unlocked_at_unix"))
+        ach_total = len(ach_rows)
+
+        # keep dashboard tidy: show first 12 (unlocked first due to ORDER BY)
+        achievements = ach_rows[:]
 
         return render_template(
             "index.html",
@@ -159,8 +239,11 @@ def create_app() -> Flask:
             last10_list=last10_list,
             last10_str=last10_str,
             streaks=streaks,
+            hero_stats=hero_stats,
+            achievements=achievements,
+            ach_unlocked=ach_unlocked,
+            ach_total=ach_total,
         )
-
 
     @app.get("/runs")
     def runs_view():
@@ -376,6 +459,40 @@ def create_app() -> Flask:
             hero_colors=hero_colors,
         )
 
+    @app.get("/achievements")
+    def achievements_view():
+        db = _db()
+        try:
+            cur = db.conn.cursor()
+            cur.execute(
+                """
+                SELECT
+                  a.key,
+                  a.title,
+                  a.description,
+                  u.unlocked_at_unix,
+                  u.run_id
+                FROM achievements a
+                LEFT JOIN achievement_unlocks u ON u.key = a.key
+                ORDER BY
+                  CASE WHEN u.unlocked_at_unix IS NOT NULL THEN 0 ELSE 1 END,
+                  u.unlocked_at_unix DESC,
+                  a.title COLLATE NOCASE ASC
+                """
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+        finally:
+            db.close()
+    
+        unlocked = sum(1 for r in rows if r.get("unlocked_at_unix") is not None)
+        total = len(rows)
+    
+        return render_template(
+            "achievements.html",
+            achievements=rows,
+            unlocked=unlocked,
+            total=total,
+        )
 
     # ----- Actions (POST) -----
 
@@ -389,6 +506,7 @@ def create_app() -> Flask:
     
             # Rebuild achievements so edits/unconfirms stay consistent
             db.rebuild_item_hero_wins()
+            db.rebuild_achievements(settings.templates_db_path)
         finally:
             db.close()
     
@@ -423,6 +541,7 @@ def create_app() -> Flask:
     
             # ✅ ensure achievements reflect edits
             db.rebuild_item_hero_wins()
+            db.rebuild_achievements(settings.templates_db_path)
         finally:
             db.close()
     
@@ -450,6 +569,7 @@ def create_app() -> Flask:
     
             # ✅ ensure achievements reflect edits
             db.rebuild_item_hero_wins()
+            db.rebuild_achievements(settings.templates_db_path)
         finally:
             db.close()
     
@@ -472,6 +592,7 @@ def create_app() -> Flask:
     
             # ✅ keep achievements consistent after edits
             db.rebuild_item_hero_wins()
+            db.rebuild_achievements(settings.templates_db_path)
         finally:
             db.close()
     

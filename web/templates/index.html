@@ -175,7 +175,97 @@
     </tbody>
   </table>
 
-  <p class="hint" style="margin-top: 10px;">
-    Tip: go to <a href="{{ url_for('items_view') }}">Items</a> to see the checklist.
+  <h2 style="margin-top: 18px;">
+    <a href="{{ url_for('heroes_index') }}" class="section-link">Heroes</a>
+  </h2>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Hero</th>
+        <th style="width: 110px;">Runs/Wins</th>
+        <th style="width: 110px;">W/L/?</th>
+        <th style="width: 120px;">Winrate</th>
+        <th style="width: 120px;">Avg wins</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in hero_stats %}
+        {% set name = h.hero %}
+        {% set c = hero_colors.get(name) %}
+        <tr class="row-link"
+            data-href="{{ url_for('hero_page', hero=name) }}">
+          <td>
+            <b style="{{ 'color:' ~ c ~ ';' if c else '' }}">{{ name }}</b>
+          </td>
+          <td>{{ h.runs }}/{{ h.wins }}</td>
+          <td>{{ h.wins }}/{{ h.losses }}/{{ h.unknowns }}</td>
+          <td>{{ h.winrate|round(1) }}%</td>
+          <td>{{ h.avg_wins|round(1) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2 style="margin-top: 18px;">
+    <a href="{{ url_for('achievements_view') }}" class="section-link">Achievements</a>
+  </h2>
+  
+  <p class="hint">
+    Completed: {{ ach_unlocked }} / {{ ach_total }}
+    ({{ (ach_unlocked * 100 / ach_total)|round(1) if ach_total else 0 }}%)
   </p>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="width: 34px;"></th>
+        <th>Achievement</th>
+        <th>Description</th>
+        <th style="width: 90px;">Run</th>
+        <th style="width: 120px;">Unlocked</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in achievements %}
+        {% set is_done = a.unlocked_at_unix is not none %}
+        <tr class="{{ 'done' if is_done else '' }} {{ 'row-link' if a.run_id else '' }}"
+            {% if a.run_id %}data-href="{{ url_for('run_detail', run_id=a.run_id) }}"{% endif %}>
+          <td>{{ "✔" if is_done else "" }}</td>
+          <td><strong>{{ a.title }}</strong></td>
+          <td>{{ a.description }}</td>
+          <td>
+            {% if a.run_id %}
+              <a href="{{ url_for('run_detail', run_id=a.run_id) }}">#{{ a.run_id }}</a>
+            {% endif %}
+          </td>
+          <td>
+            {% if a.unlocked_at_unix %}
+              {{ a.unlocked_at_unix | datetime_ymd }}
+            {% endif %}
+          </td>
+        </tr>
+{% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    // Make any row with data-href clickable (works for heroes + achievements)
+    document.querySelectorAll("tr.row-link[data-href]").forEach(tr => {
+      tr.addEventListener("click", (e) => {
+        // Don't hijack clicks on actual links/buttons
+        if (e.target.closest("a, button, input, label")) return;
+  
+        // If user is selecting text, don't navigate
+        const sel = window.getSelection && window.getSelection().toString();
+        if (sel) return;
+  
+        const href = tr.dataset.href;
+        if (href) window.location.href = href;
+      });
+    });
+  </script>
+
+
+
 {% endblock %}

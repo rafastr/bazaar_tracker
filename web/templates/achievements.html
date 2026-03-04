@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Achievements</h1>
+
+  <p class="hint">
+    Completed: {{ unlocked }} / {{ total }}
+    ({{ (unlocked * 100 / total)|round(1) if total else 0 }}%)
+  </p>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="width: 34px;"></th>
+        <th>Achievement</th>
+        <th>Description</th>
+        <th style="width: 120px;">Run</th>
+        <th style="width: 140px;">Unlocked</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in achievements %}
+        {% set is_done = a.unlocked_at_unix is not none %}
+        <tr class="{{ 'done' if is_done else '' }}" data-done="{{ 1 if is_done else 0 }}">
+          <td class="ach-mark">{{ "✔" if is_done else "" }}</td>
+
+          <td>
+            <strong>{{ a.title }}</strong>
+          </td>
+
+          <td>{{ a.description }}</td>
+
+          <td>
+            {% if a.run_id %}
+              <a href="{{ url_for('run_detail', run_id=a.run_id) }}">#{{ a.run_id }}</a>
+            {% endif %}
+          </td>
+
+          <td>
+            {% if a.unlocked_at_unix %}
+              {{ a.unlocked_at_unix | datetime_ymd }}
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
