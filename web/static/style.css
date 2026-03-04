@@ -393,3 +393,80 @@ select {
   height: 100%;
   background: rgba(140, 220, 180, 0.75);
 }
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+@media (max-width: 900px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
+.dash-card {
+  background: #141421;
+  border: 1px solid #2b2b3a;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.hero-pie-wrap {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.hero-legend {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.hero-leg-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.hero-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.12);
+  display: inline-block;
+}
+
+.hero-leg-name { opacity: 0.95; }
+.hero-leg-count { opacity: 0.75; }
+
+.last10 {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 22px;
+  letter-spacing: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  display: inline-block;
+}
+
+/* colored W/L/? in last10 + streaks */
+.last10 .r {
+  display: inline-block;
+  min-width: 14px;
+  text-align: center;
+}
+
+.r-w { color: #6ee7a8; }  /* green-ish */
+.r-l { color: #f87171; }  /* red-ish */
+.r-u { color: rgba(233,233,239,0.55); }
+
+.streaks {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}

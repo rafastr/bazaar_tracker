@@ -32,6 +32,7 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
+        # --- item checklist stats (existing) ---
         items = get_item_checklist(settings.templates_db_path, settings.run_history_db_path)
 
         total = len(items)
@@ -41,7 +42,6 @@ def create_app() -> Flask:
         win_pct = (win_done * 100 / total) if total else 0.0
         other_pct = (other_done * 100 / total) if total else 0.0
 
-        # Per-group stats
         by_group: dict[str, dict[str, Any]] = {}
         for x in items:
             g = x.get("group") or "Common"
@@ -81,7 +81,73 @@ def create_app() -> Flask:
             "other_pct": other_pct,
         }
 
-        return render_template("index.html", overall=overall, group_stats=group_stats)
+        # --- hero pie chart + last-10 W/L + streaks ---
+        runs = list_runs(settings.run_history_db_path, limit=200)
+
+        hero_counts: dict[str, int] = {}
+        for r in runs:
+            hero = (r.get("hero_effective") or "(unknown)").strip() or "(unknown)"
+            hero_counts[hero] = hero_counts.get(hero, 0) + 1
+
+        hero_pie = [
+            {"hero": h, "count": c}
+            for h, c in sorted(hero_counts.items(), key=lambda kv: (-kv[1], kv[0].lower()))
+        ]
+
+        def outcome(r: dict) -> str:
+            # if OCR not present yet, we may not know => ?
+            if r.get("won") is True:
+                return "W"
+            if r.get("wins") is not None:
+                return "L"
+            return "?"
+
+        last10 = runs[:10]
+        last10_list = [{"ch": outcome(r)} for r in last10]
+        last10_str = "".join(x["ch"] for x in last10_list)
+
+        # Current streak (most recent contiguous W or L; stops on '?' or change)
+        cur_type: str | None = None
+        cur_len = 0
+        for r in runs:
+            ch = outcome(r)
+            if ch == "?":
+                break
+            if cur_type is None:
+                cur_type = ch
+                cur_len = 1
+            elif ch == cur_type:
+                cur_len += 1
+            else:
+                break
+
+        # Best win streak (contiguous W; '?' breaks)
+        best_win = 0
+        w_run = 0
+        for r in runs:
+            ch = outcome(r)
+            if ch == "W":
+                w_run += 1
+                best_win = max(best_win, w_run)
+            elif ch == "L" or ch == "?":
+                w_run = 0
+
+        streaks = {
+            "current_type": cur_type,   # "W" / "L" / None
+            "current_len": cur_len,
+            "best_win": best_win,
+        }
+
+        return render_template(
+            "index.html",
+            overall=overall,
+            group_stats=group_stats,
+            hero_pie=hero_pie,
+            last10_list=last10_list,
+            last10_str=last10_str,
+            streaks=streaks,
+        )
+
 
     @app.get("/runs")
     def runs_view():

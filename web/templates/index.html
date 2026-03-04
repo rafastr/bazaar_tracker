@@ -2,6 +2,117 @@
 {% block content %}
   <h1>Dashboard</h1>
 
+  <div class="dash-grid">
+    <div class="dash-card">
+      <h2 style="margin-top: 0;">Played heroes</h2>
+
+      <div class="hero-pie-wrap">
+        <canvas id="heroPie" width="220" height="220"></canvas>
+
+        <div class="hero-legend">
+          {% for x in hero_pie %}
+            <div class="hero-leg-row">
+              <span class="hero-swatch" data-hero="{{ x.hero }}"></span>
+              <span class="hero-leg-name">{{ x.hero }}</span>
+              <span class="hero-leg-count">{{ x.count }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-card">
+      <h2 style="margin-top: 0;">Last 10</h2>
+    
+      <div class="last10" aria-label="Last 10 results">
+        {% for x in last10_list %}
+          <span class="r {{ 'r-w' if x.ch=='W' else ('r-l' if x.ch=='L' else 'r-u') }}">{{ x.ch }}</span>
+        {% endfor %}
+      </div>
+    
+      <div class="streaks">
+        <div>
+          Current streak:
+          {% if streaks.current_type %}
+            <b class="{{ 'r-w' if streaks.current_type=='W' else 'r-l' }}">
+              {{ streaks.current_len }}{{ streaks.current_type }}
+            </b>
+          {% else %}
+            <span class="hint">—</span>
+          {% endif %}
+        </div>
+    
+        <div>
+          Best win streak: <b class="r-w">{{ streaks.best_win }}W</b>
+        </div>
+      </div>
+    
+      <p class="hint" style="margin-top: 8px; margin-bottom: 0;">
+        W = win · L = loss · ? = unknown
+      </p>
+    </div>
+
+
+  </div>
+
+  <script>
+    (function () {
+      const data = {{ hero_pie|tojson }};
+      const canvas = document.getElementById("heroPie");
+      if (!canvas || !data || !data.length) return;
+
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      const cx = w / 2, cy = h / 2;
+      const r = Math.min(w, h) / 2 - 6;
+
+      const total = data.reduce((a, x) => a + (x.count || 0), 0) || 1;
+
+      // stable hash -> hue (so colors stay consistent per hero)
+      function heroColor(hero) {
+        let s = String(hero || "");
+        let hash = 0;
+        for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+        const hue = Math.abs(hash) % 360;
+        return `hsl(${hue} 55% 55%)`;
+      }
+
+      // paint swatches in legend
+      document.querySelectorAll(".hero-swatch").forEach(el => {
+        el.style.background = heroColor(el.dataset.hero);
+      });
+
+      let start = -Math.PI / 2;
+      data.forEach(x => {
+        const frac = (x.count || 0) / total;
+        const ang = frac * Math.PI * 2;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, start, start + ang);
+        ctx.closePath();
+        ctx.fillStyle = heroColor(x.hero);
+        ctx.fill();
+
+        start += ang;
+      });
+
+      // donut hole (nice)
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.58, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(11,11,15,1)";
+      ctx.fill();
+
+      // center label
+      ctx.fillStyle = "rgba(233,233,239,0.9)";
+      ctx.font = "700 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(total + " runs", cx, cy);
+    })();
+  </script>
+
+
   <p class="hint">
     Win: {{ overall.win }} / {{ overall.total }} ({{ overall.win_pct|round(1) }}%) ·
     Other-hero: {{ overall.other }} / {{ overall.total }} ({{ overall.other_pct|round(1) }}%)
