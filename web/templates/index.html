@@ -69,17 +69,23 @@
       const total = data.reduce((a, x) => a + (x.count || 0), 0) || 1;
 
       // stable hash -> hue (so colors stay consistent per hero)
-      function heroColor(hero) {
-        let s = String(hero || "");
+      function heroColor(entry) {
+        if (entry.color) return entry.color;
+      
+        // fallback deterministic color
+        let s = entry.hero || "";
         let hash = 0;
-        for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+        for (let i = 0; i < s.length; i++)
+            hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+      
         const hue = Math.abs(hash) % 360;
         return `hsl(${hue} 55% 55%)`;
       }
 
       // paint swatches in legend
       document.querySelectorAll(".hero-swatch").forEach(el => {
-        el.style.background = heroColor(el.dataset.hero);
+        const entry = data.find(x => x.hero === el.dataset.hero);
+        el.style.background = heroColor(entry);
       });
 
       let start = -Math.PI / 2;
@@ -91,7 +97,7 @@
         ctx.moveTo(cx, cy);
         ctx.arc(cx, cy, r, start, start + ang);
         ctx.closePath();
-        ctx.fillStyle = heroColor(x.hero);
+        ctx.fillStyle = heroColor(x);
         ctx.fill();
 
         start += ang;

@@ -470,3 +470,62 @@ select {
   display: grid;
   gap: 6px;
 }
+
+.section-title {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  position: relative;
+}
+
+.section-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--hero, rgba(255,255,255,0.25));
+  opacity: 0.9;
+}
+
+.section-table {
+  border-left: 4px solid var(--hero, transparent);
+}
+
+/* result badges (W/L/?) */
+.badge {
+  display: inline-block;
+  min-width: 22px;
+  text-align: center;
+  padding: 1px 4px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1.2;
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+.badge-W {
+  color: #0b2a12;
+  background: rgba(80, 200, 120, 0.85);
+  border-color: rgba(80, 200, 120, 0.95);
+}
+
+.badge-L {
+  color: #2a0b0b;
+  background: rgba(230, 90, 90, 0.85);
+  border-color: rgba(230, 90, 90, 0.95);
+}
+
+.badge-\? {
+  color: rgba(255,255,255,0.85);
+  background: rgba(140, 140, 140, 0.25);
+  border-color: rgba(140, 140, 140, 0.45);
+}
+
+/* clickable run rows */
+tr.run-row { cursor: pointer; }
+tr.run-row:hover { background: rgba(255,255,255,0.05); }

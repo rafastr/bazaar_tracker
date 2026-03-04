@@ -5,38 +5,81 @@
   {% if not runs %}
     <p>No runs yet.</p>
   {% else %}
-    <table class="table">
+
+    <div class="filters" style="margin-bottom: 12px;">
+      <div class="filters-row">
+        <b>Hero filter</b>
+        {# build hero list from runs #}
+        {% set hero_list = runs | map(attribute="hero_effective") | map("default", "") | unique | list %}
+        {% for h in hero_list %}
+          {% set name = (h or "(unknown)") %}
+          {% set c = hero_colors.get(name) %}
+          <label class="chk" style="{{ 'color:' ~ c ~ ';' if c else '' }}">
+            <input type="checkbox" class="f-hero" value="{{ name }}" checked>
+            {{ name }}
+          </label>
+        {% endfor %}
+      </div>
+
+      <div class="filters-row">
+        <b>Result</b>
+        <label class="chk"><input type="checkbox" class="f-res" value="W" checked> Win</label>
+        <label class="chk"><input type="checkbox" class="f-res" value="L" checked> Loss</label>
+        <label class="chk"><input type="checkbox" class="f-res" value="?" checked> Unknown</label>
+      </div>
+
+      <p class="hint" style="margin: 8px 0 0 0;">
+        Showing <span id="runs-visible">0</span> / <span id="runs-total">{{ runs|length }}</span>
+      </p>
+    </div>
+
+    <table class="table" id="runs-table">
       <thead>
         <tr>
+          <th style="width: 44px;">Result</th>
           <th>ID</th>
           <th>Ended</th>
           <th>Hero</th>
           <th>Rank</th>
           <th>Wins</th>
-          <th></th>
         </tr>
       </thead>
+
       <tbody>
         {% for r in runs %}
-          <tr>
+          {% set h = (r.hero_effective or "(unknown)") %}
+          {% set c = hero_colors.get(h) %}
+          {% set res = "W" if r.won else ("L" if r.wins is not none else "?") %}
+
+          <tr class="run-row"
+              data-hero="{{ h }}"
+              data-res="{{ res }}"
+              data-href="{{ url_for('run_detail', run_id=r.run_id) }}">
+
+            <td>
+              <span class="badge badge-{{ res }}">{{ res }}</span>
+            </td>
+
             <td>
               {{ r.run_id }}{% if r.is_confirmed %} ✔{% endif %}
             </td>
+
             <td>
               {% if r.ended_at_unix %}
                 {{ r.ended_at_unix | datetime_ymd }}
               {% endif %}
             </td>
+
             <td>
               {% if r.won %}
-                <strong>{{ r.hero_effective or "" }}</strong>
+                <strong style="{{ 'color:' ~ c ~ ';' if c else '' }}">{{ h }}</strong>
               {% else %}
-                {{ r.hero_effective or "" }}
+                <span style="{{ 'color:' ~ c ~ ';' if c else '' }}">{{ h }}</span>
               {% endif %}
             </td>
+
             <td>{{ r.rank_effective if r.rank_effective is not none else "" }}</td>
             <td>{{ r.wins if r.wins is not none else "" }}</td>
-            <td><a href="{{ url_for('run_detail', run_id=r.run_id) }}">open</a></td>
           </tr>
         {% endfor %}
       </tbody>
@@ -45,5 +88,50 @@
     <p class="hint">
       Tip: click “Latest” in the top bar.
     </p>
+
+    <script>
+      function applyRunFilters() {
+        const heroSet = new Set(
+          Array.from(document.querySelectorAll(".f-hero:checked")).map(x => x.value)
+        );
+        const resSet = new Set(
+          Array.from(document.querySelectorAll(".f-res:checked")).map(x => x.value)
+        );
+
+        let visible = 0;
+
+        document.querySelectorAll("tr.run-row").forEach(tr => {
+          const hero = tr.dataset.hero || "(unknown)";
+          const res = tr.dataset.res || "?";
+
+          const heroOk = heroSet.size === 0 ? true : heroSet.has(hero);
+          const resOk = resSet.size === 0 ? true : resSet.has(res);
+
+          const show = heroOk && resOk;
+          tr.style.display = show ? "" : "none";
+          if (show) visible += 1;
+        });
+
+        const visEl = document.getElementById("runs-visible");
+        if (visEl) visEl.textContent = String(visible);
+      }
+
+      // Make row clickable (ignore text selection)
+      document.querySelectorAll("tr.run-row").forEach(tr => {
+        tr.addEventListener("click", () => {
+          const sel = window.getSelection && window.getSelection().toString();
+          if (sel) return;
+          const href = tr.dataset.href;
+          if (href) window.location.href = href;
+        });
+      });
+
+      document.querySelectorAll(".f-hero, .f-res").forEach(cb => {
+        cb.addEventListener("change", applyRunFilters);
+      });
+
+      applyRunFilters();
+    </script>
+
   {% endif %}
 {% endblock %}

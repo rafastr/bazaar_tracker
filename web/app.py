@@ -89,10 +89,23 @@ def create_app() -> Flask:
             hero = (r.get("hero_effective") or "(unknown)").strip() or "(unknown)"
             hero_counts[hero] = hero_counts.get(hero, 0) + 1
 
-        hero_pie = [
-            {"hero": h, "count": c}
-            for h, c in sorted(hero_counts.items(), key=lambda kv: (-kv[1], kv[0].lower()))
-        ]
+        # load hero colors
+        conn = sqlite3.connect(settings.run_history_db_path)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        
+        cur.execute("SELECT hero, color FROM hero_colors")
+        hero_colors = {r["hero"]: r["color"] for r in cur.fetchall()}
+        
+        conn.close()
+        
+        hero_pie = []
+        for h, c in sorted(hero_counts.items(), key=lambda kv: (-kv[1], kv[0].lower())):
+            hero_pie.append({
+                "hero": h,
+                "count": c,
+                "color": hero_colors.get(h)  # may be None
+            })
 
         def outcome(r: dict) -> str:
             # if OCR not present yet, we may not know => ?
@@ -152,7 +165,8 @@ def create_app() -> Flask:
     @app.get("/runs")
     def runs_view():
         runs = list_runs(settings.run_history_db_path, limit=50)
-        return render_template("run_view.html", runs=runs)
+        hero_colors = get_hero_colors(settings.run_history_db_path)
+        return render_template("runs_view.html", runs=runs, hero_colors=hero_colors)
 
     @app.get("/run/latest")
     def run_latest():
@@ -239,10 +253,16 @@ def create_app() -> Flask:
         finally:
             conn.close()
 
-    @app.get("/achievements/items")
+    @app.get("/items")
     def items_view():
         items = get_item_checklist(settings.templates_db_path, settings.run_history_db_path)
-        return render_template("items_view.html", items=items)
+        hero_colors = get_hero_colors(settings.run_history_db_path)
+        return render_template("items_view.html", items=items, hero_colors=hero_colors)
+
+    @app.context_processor
+    def inject_hero_colors():
+        return {"hero_colors": get_hero_colors(settings.run_history_db_path)}
+
 
     # ----- Actions (POST) -----
 
@@ -602,6 +622,18 @@ def get_item_checklist(templates_db_path: str, run_history_db_path: str) -> list
     # sort: group, then name
     out.sort(key=lambda r: (group_key(r["group"]), r["name"].lower()))
     return out
+
+
+def get_hero_colors(run_history_db_path: str) -> dict[str, str]:
+    import sqlite3
+    conn = sqlite3.connect(run_history_db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT hero, color FROM hero_colors")
+        return {r["hero"]: r["color"] for r in cur.fetchall() if r["hero"] and r["color"]}
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

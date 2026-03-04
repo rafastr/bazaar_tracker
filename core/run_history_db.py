@@ -144,6 +144,34 @@ class RunHistoryDb:
             "CREATE INDEX IF NOT EXISTS idx_run_items_template_id ON run_items(template_id)"
         )
 
+
+        # Color of heroes for UI
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS hero_colors (
+                hero TEXT PRIMARY KEY,
+                color TEXT NOT NULL
+            )
+            """
+        )
+
+        cur.executemany(
+            """
+            INSERT OR IGNORE INTO hero_colors(hero, color)
+            VALUES (?, ?)
+            """,
+            [
+                ("Vanessa", "#c73b3b"),
+                ("Dooley", "#b58900"),
+                ("Jules", "#7a3bd1"),
+                ("Mak", "#1f6b3d"),
+                ("Pygmalien", "#3b6bc7"),
+                ("Stelle", "#e2c53b"),
+                ("Karnok", "#a13b3b"),
+            ],
+        )
+
+
         self._ensure_column("runs", "hero TEXT")
         self._ensure_column("runs", "rank INTEGER")
         self._ensure_column("runs", "metrics_json TEXT")

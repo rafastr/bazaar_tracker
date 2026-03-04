@@ -7,11 +7,13 @@
       <b>Hero filter</b>
       {% set groups = items | map(attribute="group") | unique | list %}
       {% for g in groups %}
-        <label class="chk">
+        {% set c = hero_colors.get(g) %}
+        <label class="chk" style="{{ 'color:' ~ c ~ ';' if c else '' }}">
           <input type="checkbox" class="f-hero" value="{{ g }}" checked>
           {{ g }}
         </label>
       {% endfor %}
+
     </div>
 
     <div class="filters-row">
@@ -55,7 +57,9 @@
       {% set gpct_win = (ns.group_win * 100 / ns.group_total) if ns.group_total else 0 %}
       {% set gpct_other = (ns.group_other * 100 / ns.group_total) if ns.group_total else 0 %}
 
-      <h2 style="margin-top: 18px;" data-group="{{ ns.cur }}">
+      {% set gc = hero_colors.get(ns.cur) %}
+      <h2 style="margin-top: 18px; {{ 'color:' ~ gc ~ ';' if gc else '' }}"
+          data-group="{{ ns.cur }}">
         {{ ns.cur }}
         <span style="font-weight: 400; opacity: 0.85;">
           · Win <span class="g-win-done">{{ ns.group_win }}</span> /
@@ -66,18 +70,11 @@
           (<span class="g-other-pct">{{ gpct_other|round(1) }}</span>%)
         </span>
       </h2>
-
-      <table class="table" data-group="{{ ns.cur }}">
-        <thead>
-          <tr>
-            <th style="width: 46px;"></th>
-            <th>Item</th>
-            <th style="width: 80px;">Win</th>
-            <th style="width: 140px;">Win other hero</th>
-          </tr>
-        </thead>
-        <tbody>
-    {% endif %}
+      {% set gc = hero_colors.get(ns.cur) %}
+      <table class="table section-table"
+             data-group="{{ ns.cur }}"
+             style="{{ 'border-top: 3px solid ' ~ gc ~ '; background: color-mix(in srgb, ' ~ gc ~ ' 10%, transparent);' if gc else '' }}">
+          {% endif %}
 
     <tr class="{{ 'done' if it.won_this else '' }}"
         data-hero="{{ it.group }}"
