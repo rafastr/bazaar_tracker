@@ -144,7 +144,6 @@ class RunHistoryDb:
             "CREATE INDEX IF NOT EXISTS idx_run_items_template_id ON run_items(template_id)"
         )
 
-
         # Color of heroes for UI
         cur.execute(
             """
@@ -203,6 +202,22 @@ class RunHistoryDb:
             );
             """
         )
+
+
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS item_firsts (
+              template_id TEXT PRIMARY KEY,
+              first_win_run_id INTEGER,
+              first_cross_win_run_id INTEGER,
+              FOREIGN KEY (first_win_run_id) REFERENCES runs(run_id),
+              FOREIGN KEY (first_cross_win_run_id) REFERENCES runs(run_id)
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_item_firsts_first_win ON item_firsts(first_win_run_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_item_firsts_first_cross ON item_firsts(first_cross_win_run_id)")
+
 
         # Seed achievement definitions so the UI always has the full list.
         self.ensure_achievements_seeded()
@@ -801,7 +816,6 @@ class RunHistoryDb:
               o.hero_override,
               COALESCE(o.is_confirmed, 0) AS is_confirmed,
               COALESCE(m.won, 0) AS won,
-              m.wins AS wins
               m.wins AS wins,
               m.max_health AS max_health,
               m.prestige AS prestige,
@@ -1028,5 +1042,150 @@ class RunHistoryDb:
         self.ensure_achievements_seeded()
         self.conn.commit()
 
-
+    def rebuild_item_firsts(self, templates_db_path: str) -> None:
+        """
+        Recompute item_firsts from confirmed+won runs in ascending run order.
+        - first_win_run_id: first time item appears in any confirmed win.
+        - first_cross_win_run_id: first time item appears in a confirmed win
+          where the winning hero is NOT in item's origin heroes
+          (Common items count as cross immediately).
+        Deterministic and safe to rebuild after edits/unconfirms.
+        """
+        import json
     
+        cur = self.conn.cursor()
+    
+        # ---- load origins from templates DB ----
+        tconn = sqlite3.connect(templates_db_path)
+        tconn.row_factory = sqlite3.Row
+        try:
+            tcur = tconn.cursor()
+            tcur.execute("SELECT template_id, heroes_json FROM templates WHERE template_id IS NOT NULL")
+            rows = tcur.fetchall()
+        finally:
+            tconn.close()
+    
+        def parse_origin_set(heroes_json: str) -> set[str]:
+            s = (heroes_json or "").strip()
+            if not s:
+                return set()
+            try:
+                data = json.loads(s)
+            except Exception:
+                return set()
+            if isinstance(data, list):
+                vals = data
+            elif isinstance(data, dict):
+                vals = data.get("heroes", [])
+            else:
+                vals = [data]
+            out: set[str] = set()
+            for v in vals:
+                if isinstance(v, str):
+                    name = v.strip()
+                    if name:
+                        out.add(name)
+            return out
+    
+        origin_by_tid: dict[str, set[str]] = {}
+        is_common_tid: dict[str, bool] = {}
+        for r in rows:
+            tid = (r["template_id"] or "").strip()
+            if not tid:
+                continue
+            origins = parse_origin_set(r["heroes_json"] or "")
+            origin_by_tid[tid] = origins
+            is_common_tid[tid] = any(h.lower() == "common" for h in origins) or (not origins)
+    
+        # ---- wipe ----
+        cur.execute("DELETE FROM item_firsts")
+    
+        # ---- confirmed+won runs in order ----
+        cur.execute(
+            """
+            SELECT
+              r.run_id,
+              r.hero AS hero_base,
+              o.hero_override
+            FROM runs r
+            LEFT JOIN run_overrides o ON o.run_id = r.run_id
+            LEFT JOIN run_metrics  m ON m.run_id = r.run_id
+            WHERE COALESCE(o.is_confirmed, 0) = 1
+              AND COALESCE(m.won, 0) = 1
+            ORDER BY r.run_id ASC
+            """
+        )
+        win_runs = cur.fetchall()
+    
+        seen_any: set[str] = set()
+        seen_cross: set[str] = set()
+    
+        def effective_items(run_id: int) -> list[str]:
+            # base
+            cur.execute("SELECT socket_number, template_id FROM run_items WHERE run_id=?", (run_id,))
+            base = {int(r["socket_number"]): (r["template_id"] or "").strip() for r in cur.fetchall()}
+    
+            # overrides
+            cur.execute("SELECT socket_number, template_id_override FROM run_item_overrides WHERE run_id=?", (run_id,))
+            ov = {int(r["socket_number"]): r["template_id_override"] for r in cur.fetchall()}
+    
+            out: list[str] = []
+            for sock, tid in base.items():
+                if sock in ov and ov[sock] is not None:
+                    tid_eff = (ov[sock] or "").strip()
+                else:
+                    tid_eff = tid
+                if tid_eff:
+                    out.append(tid_eff)
+    
+            # unique per run is fine for “first time”
+            return sorted(set(out))
+    
+        for rr in win_runs:
+            run_id = int(rr["run_id"])
+            hero_eff = (rr["hero_override"] or rr["hero_base"] or "").strip() or "(unknown)"
+    
+            tids = effective_items(run_id)
+            for tid in tids:
+                if tid not in seen_any:
+                    cur.execute(
+                        """
+                        INSERT OR IGNORE INTO item_firsts(template_id, first_win_run_id)
+                        VALUES (?, ?)
+                        """,
+                        (tid, run_id),
+                    )
+                    seen_any.add(tid)
+    
+                # cross-hero logic
+                if tid in seen_cross:
+                    continue
+    
+                if is_common_tid.get(tid, False):
+                    cur.execute(
+                        """
+                        INSERT INTO item_firsts(template_id, first_cross_win_run_id)
+                        VALUES (?, ?)
+                        ON CONFLICT(template_id) DO UPDATE SET
+                          first_cross_win_run_id=COALESCE(item_firsts.first_cross_win_run_id, excluded.first_cross_win_run_id)
+                        """,
+                        (tid, run_id),
+                    )
+                    seen_cross.add(tid)
+                    continue
+    
+                origins = origin_by_tid.get(tid, set())
+                if hero_eff and hero_eff not in origins:
+                    cur.execute(
+                        """
+                        INSERT INTO item_firsts(template_id, first_cross_win_run_id)
+                        VALUES (?, ?)
+                        ON CONFLICT(template_id) DO UPDATE SET
+                          first_cross_win_run_id=COALESCE(item_firsts.first_cross_win_run_id, excluded.first_cross_win_run_id)
+                        """,
+                        (tid, run_id),
+                    )
+                    seen_cross.add(tid)
+    
+        self.conn.commit()
+

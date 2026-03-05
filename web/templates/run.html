@@ -1,7 +1,78 @@
 {% extends "base.html" %}
 {% block content %}
   <div class="run-header">
-    <h1>Run {{ run.run_id }}</h1>
+    <h1>Run {{ run.run_id }}  </h1>
+
+      {% if metrics and metrics.won %}
+        <span class="badge-win">🏆 Won</span>
+      {% endif %}
+
+    {% set pr = progress %}
+    {% set rows = pr.rows if pr else [] %}
+    
+    {% if rows %}
+      <div class="dash-card" style="margin: 12px 0;">
+        <h2 style="margin: 0 0 8px 0;">Progress from this run</h2>
+    
+        {% if not pr.confirmed %}
+          <p class="hint" style="margin: 0 0 10px 0;">
+            This run is not verified yet — progress highlights will appear after you verify it.
+          </p>
+        {% elif not pr.won %}
+          <p class="hint" style="margin: 0 0 10px 0;">
+            This run wasn’t a win — item checklist progress only counts for verified wins.
+          </p>
+        {% endif %}
+    
+        <table class="table" style="margin: 0;">
+          <thead>
+            <tr>
+              <th style="width: 46px;"></th>
+              <th>Item</th>
+              <th style="width: 90px;">Win</th>
+              <th style="width: 160px;">Win other hero</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in rows %}
+              <tr>
+                <td class="item-thumb">
+                  {% if it.template_id %}
+                    <div class="thumb-wrap">
+                      <img
+                        src="{{ url_for('item_image', template_id=it.template_id) }}"
+                        alt=""
+                        class="thumb"
+                        loading="lazy"
+                      />
+                      <img
+                        src="{{ url_for('item_image', template_id=it.template_id) }}"
+                        class="thumb-preview"
+                      />
+                    </div>
+                  {% endif %}
+                </td>
+    
+                <td><b>{{ it.name }}</b></td>
+    
+                <td class="mark-win {{ 'mark-new' if it.new_won_this else '' }}">
+                  {{ "✔" if it.won_this else "" }}
+                </td>
+    
+                <td class="mark-other {{ 'mark-new' if it.new_won_other else '' }}">
+                  {{ "✔" if it.won_other else "" }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+    
+        <p class="hint" style="margin: 10px 0 0 0;">
+          Highlighted checkmarks were first earned by this run.
+        </p>
+      </div>
+    {% endif %}
+
 
     <div class="meta">
         <div><b>Wins:</b> {{ metrics.wins if metrics.wins is not none else "?" }}</div>
@@ -64,7 +135,12 @@
     </div>
   </div>
 
-  <h2>Final board</h2>
+  <h2 class="section-head">
+    Final board
+    {% if metrics and metrics.won %}
+      <span class="badge-win">🏆 Won</span>
+    {% endif %}
+  </h2>
 
   <div class="board-strip">
     {% for block in grid %}
@@ -110,9 +186,6 @@
         <div><b>Level:</b> {{ metrics.level if metrics.level is not none else "?" }}</div>
         <div><b>Income:</b> {{ metrics.income if metrics.income is not none else "?" }}</div>
         <div><b>Gold:</b> {{ metrics.gold if metrics.gold is not none else "?" }}</div>
-        {% if metrics.won %}
-          <div class="badge-win">🏆 Won</div>
-        {% endif %}
       </div>
     {% else %}
       <div class="hint">No OCR metrics stored yet.</div>

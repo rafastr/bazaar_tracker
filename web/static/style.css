@@ -603,3 +603,21 @@ tr.done:hover {
 
 tr.row-link { cursor: pointer; }
 tr.row-link:hover { background: rgba(255,255,255,0.04); }
+
+/* highlight checkmarks earned by THIS run */
+.mark-new {
+  background: rgba(255, 220, 120, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 120, 0.25);
+  border-radius: 6px;
+}
+
+.section-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px 0;
+}
+
+.section-head .badge-win {
+  font-size: 0.9rem;
+}
