@@ -42,7 +42,10 @@ def list_runs(run_history_db_path: str, limit: int = 20) -> List[Dict[str, Any]]
                 COALESCE(o.rank_override, r.rank) AS rank_effective,
         
                 m.wins AS wins,
-                m.won  AS won
+                m.won  AS won,
+
+                r.season_id AS season_id
+
             FROM runs r
             LEFT JOIN run_overrides o ON o.run_id = r.run_id
             LEFT JOIN run_metrics  m ON m.run_id = r.run_id
@@ -96,7 +99,11 @@ def get_run_board(
     try:
         cur = rh.cursor()
         cur.execute(
-            "SELECT run_id, ended_at_unix, screenshot_path, hero, rank FROM runs WHERE run_id = ?",
+            """
+            SELECT run_id, ended_at_unix, screenshot_path, hero, rank, season_id
+            FROM runs
+            WHERE run_id = ?
+            """,
             (run_id,),
         )
         run_row = cur.fetchone()
@@ -194,6 +201,8 @@ def get_run_board(
         
             "hero": run_row["hero"],
             "rank": run_row["rank"],
+        
+            "season_id": run_row["season_id"],  # <-- ADD THIS
         
             "hero_effective": hero_eff,
             "rank_effective": rank_eff,

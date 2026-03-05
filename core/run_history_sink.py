@@ -24,6 +24,7 @@ class RunHistorySink:
                 ev.board_items,
                 screenshot_path=ev.screenshot_path,
                 hero=ev.hero,
+                season_id=ev.season_id,
             )
             self._last_run_id = run_id
             print({"type": "RunStored", "run_id": run_id, "items": len(ev.board_items)})

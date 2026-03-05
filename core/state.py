@@ -23,6 +23,7 @@ class RunState:
         # Persisted across sessions for an ongoing run
         self.instance_map: Dict[str, str] = self.store.load()
         self.current_hero: Optional[str] = self.meta_store.get_hero()
+        self.current_season_id: Optional[int] = None
 
         self.in_run: bool = False
         self.last_player_board: Optional[List[Dict[str, Any]]] = None
@@ -33,6 +34,7 @@ class RunState:
         self.instance_map.clear()
         self.store.save(self.instance_map)
         self.current_hero = None
+        self.current_season_id = None
         self.meta_store.clear()
 
 
@@ -50,6 +52,10 @@ class RunState:
         if ev.type == "HeroDetected" and ev.hero:
             self.current_hero = ev.hero
             self.meta_store.set_hero(ev.hero)
+            return
+
+        if ev.type == "SeasonDetected" and ev.season_id is not None:
+            self.current_season_id = ev.season_id
             return
 
         # Auto-enter run if tracker started mid-run
@@ -94,6 +100,7 @@ class RunState:
                     board_items=sorted_items,
                     screenshot_path=self.last_screenshot_path,
                     hero=self.current_hero,
+                    season_id=self.current_season_id,
                     method="last_seen_gamesimhandler_snapshot + instance_map_join",
                     confidence=1.0,
                 )

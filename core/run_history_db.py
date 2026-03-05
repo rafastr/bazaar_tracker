@@ -176,6 +176,7 @@ class RunHistoryDb:
         self._ensure_column("runs", "metrics_json TEXT")
         self._ensure_column("runs", "is_confirmed INTEGER DEFAULT 0")
         self._ensure_column("runs", "notes TEXT")
+        self._ensure_column("runs", "season_id INTEGER")
 
         self.conn.commit()
 
@@ -234,35 +235,44 @@ class RunHistoryDb:
             # column probably exists
             pass
 
-
-    def insert_run(self, board_items_sorted, screenshot_path: Optional[str], hero: Optional[str]) -> int:
-
+    def insert_run(
+        self,
+        board_items_sorted,
+        screenshot_path: Optional[str],
+        hero: Optional[str],
+        season_id: Optional[int] = None,
+    ) -> int:
         """
         board_items_sorted: list of dicts in socket order:
           {"socket_number": int, "size": str, "template_id": str, ...}
-
+    
         Returns run_id.
         """
         ended_at = int(time.time())
         cur = self.conn.cursor()
-
+    
+        # Fallback: if we couldn't detect season, reuse last known season.
+        if season_id is None:
+            season_id = self.get_last_season_id()
+    
+        # IMPORTANT: always insert the run (not only when season_id is None)
         cur.execute(
-            "INSERT INTO runs (ended_at_unix, screenshot_path, hero) VALUES (?, ?, ?)",
-            (ended_at, screenshot_path, hero),
+            "INSERT INTO runs (ended_at_unix, screenshot_path, hero, season_id) VALUES (?, ?, ?, ?)",
+            (ended_at, screenshot_path, hero, season_id),
         )
-        lastrowid = cur.lastrowid
-        if lastrowid is None:
+    
+        run_id = cur.lastrowid
+        if not run_id:
             raise RuntimeError("Failed to get lastrowid after inserting run")
-        run_id = int(lastrowid)
-
+        run_id = int(run_id)
+    
         rows = []
         for it in board_items_sorted:
             socket = int(it["socket_number"])
             template_id = it.get("template_id")
             size = it.get("size")
-
             rows.append((run_id, socket, template_id, str(size)))
-
+    
         cur.executemany(
             """
             INSERT INTO run_items (run_id, socket_number, template_id, size)
@@ -270,12 +280,13 @@ class RunHistoryDb:
             """,
             rows,
         )
-
+    
         self.conn.commit()
+    
         # Auto OCR metrics if we have a screenshot (async)
         if screenshot_path:
             self.run_ocr_for_run_async(run_id, screenshot_path, ocr_version="v1")
-
+    
         return run_id
 
 
@@ -418,6 +429,30 @@ class RunHistoryDb:
                 (ocr_version, now, int(run_id)),
             )
     
+        self.conn.commit()
+    
+
+    def get_last_season_id(self) -> Optional[int]:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT season_id
+            FROM runs
+            WHERE season_id IS NOT NULL
+            ORDER BY run_id DESC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        v = row["season_id"]
+        return int(v) if v is not None else None
+    
+    
+    def set_run_season_id(self, run_id: int, season_id: Optional[int]) -> None:
+        cur = self.conn.cursor()
+        cur.execute("UPDATE runs SET season_id=? WHERE run_id=?", (season_id, int(run_id)))
         self.conn.commit()
     
     

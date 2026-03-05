@@ -171,6 +171,19 @@
       ctx.fillStyle = "rgba(255,255,255,0.02)";
       ctx.fillRect(0,0,w,h);
       
+      // background lines
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
+      ctx.lineWidth = 1;
+      
+      for (let i = 0; i <= 4; i++) {
+        const y = pad + i * (h - pad*2) / 4;
+        ctx.beginPath();
+        ctx.moveTo(pad, y);
+        ctx.lineTo(w - pad, y);
+        ctx.stroke();
+      }
+
+
       // line
       ctx.beginPath();
       scores.forEach((s, i) => {

@@ -98,7 +98,10 @@
           {{ run.hero_effective or "(unknown)" }}
         {% endif %}
       </div>
+
       <div><b>Rank:</b> {{ run.rank_effective if run.rank_effective is not none else "(unknown)" }}</div>
+      <div><b>Season:</b> {{ run.season_id if run.season_id is not none else "?" }}</div>
+
       {% if run.is_confirmed %}
         <div class="badge-verified">✔</div>
       {% endif %}

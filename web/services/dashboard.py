@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable
 import sqlite3
 
+from web.services.stats import perfect_runs_count, perfect_runs_by_hero, rank_series
 from core.config import Settings
 from core.run_viewer import list_runs
 
@@ -158,20 +159,9 @@ def build_index_context(
     )
     rows = [dict(r) for r in cur.fetchall()]
 
-    # --- perfect runs (confirmed + won + prestige>=20) ---
-    cur.execute(
-        """
-        SELECT COUNT(*) AS n
-        FROM runs r
-        LEFT JOIN run_overrides o ON o.run_id = r.run_id
-        LEFT JOIN run_metrics  m ON m.run_id = r.run_id
-        WHERE COALESCE(o.is_confirmed, 0) = 1
-          AND COALESCE(m.won, 0) = 1
-          AND COALESCE(m.prestige, 0) >= 20
-        """
-    )
-    row = cur.fetchone()
-    perfect_runs = int(row["n"]) if row else 0
+    perfect_runs = perfect_runs_count(cur)
+    rank_series_data = rank_series(cur)
+    perfect_runs_hero = perfect_runs_by_hero(cur)  # optional to display later
 
     stats_by_hero: dict[str, dict[str, Any]] = {}
     for r in rows:
@@ -221,24 +211,9 @@ def build_index_context(
     ach_unlocked = sum(1 for r in ach_rows if r.get("unlocked_at_unix"))
     ach_total = len(ach_rows)
 
-    # --- rank evolution (confirmed runs with rank) ---
-    cur.execute(
-        """
-        SELECT
-          r.run_id,
-          COALESCE(o.rank_override, r.rank) AS rank_eff
-        FROM runs r
-        LEFT JOIN run_overrides o ON o.run_id = r.run_id
-        WHERE COALESCE(o.is_confirmed, 0) = 1
-          AND COALESCE(o.rank_override, r.rank) IS NOT NULL
-        ORDER BY r.run_id ASC
-        """
-    )
-    rank_series = [{"run_id": int(r["run_id"]), "rank": int(r["rank_eff"])} for r in cur.fetchall()]
 
     return {
         "overall": overall,
-        "perfect_runs": perfect_runs,
         "group_stats": group_stats,
         "hero_pie": hero_pie,
         "last10_list": last10_list,
@@ -248,5 +223,9 @@ def build_index_context(
         "achievements": ach_rows,
         "ach_unlocked": ach_unlocked,
         "ach_total": ach_total,
-        "rank_series": rank_series,
+    
+        # from stats.py
+        "perfect_runs": perfect_runs,
+        "rank_series": rank_series_data,
+        "perfect_runs_hero": perfect_runs_hero,
     }

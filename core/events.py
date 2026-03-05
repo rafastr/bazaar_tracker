@@ -15,6 +15,7 @@ class Event:
 
     hero: Optional[str] = None
     rank: Optional[int] = None
+    season_id: Optional[int] = None
 
     # Board snapshot
     board_items: Optional[List[Dict[str, Any]]] = None
