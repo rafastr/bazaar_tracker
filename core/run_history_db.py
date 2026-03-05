@@ -725,7 +725,7 @@ class RunHistoryDb:
             ("grand_tour", "Grand Tour", "Win with every hero in consecutive wins (no repeats; losses break the chain)."),
             ("collector", "Collector", "Use every item at least once."),
             ("cross_class_collector", "Cross-Class Collector", "Use every item in a win with a hero that is not the item's origin."),
-            ("hp_millionaire", "HP Millionaire", "Win a run with 1,000,000+ Max HP."),
+            ("hp_millionaire", "HP Millionaire", "Win a run with 25,000+ Max HP."),
             ("prestige_25", "Prestige 25", "Win a run with 25+ Prestige."),
             ("level_20", "Level 20", "Win a run with 20+ level."),
             ("income_25", "Income 25", "Win a run with 25+ income."),

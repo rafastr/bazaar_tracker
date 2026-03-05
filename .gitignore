@@ -4,3 +4,4 @@ __pycache__/
 screenshots/
 assets/
 ocr_debug/
+db/

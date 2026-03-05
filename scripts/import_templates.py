@@ -13,7 +13,7 @@ def default_cards_path() -> Optional[str]:
     On non-Windows systems, return None.
     """
     if platform.system() == "Windows":
-        return r"C:\Games\TheBazaar\TheBazaar_Data\StreamingAssets\cards.json"
+        return r"C:\Program Files(x86)\Steam\steamapps\common\The Bazaar\TheBazaar_Data\StreamingAssets\cards.json"
     return None
 
 
