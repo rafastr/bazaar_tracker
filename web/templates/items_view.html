@@ -74,6 +74,15 @@
       <table class="table section-table"
              data-group="{{ ns.cur }}"
              style="{{ 'border-top: 3px solid ' ~ gc ~ '; background: color-mix(in srgb, ' ~ gc ~ ' 10%, transparent);' if gc else '' }}">
+          <thead>
+            <tr>
+              <th style="width: 52px;"></th>
+              <th>Item</th>
+              <th style="width: 80px; text-align:center;">Win</th>
+              <th style="width: 140px; text-align:center;">Win other hero</th>
+            </tr>
+          </thead>
+          <tbody>
           {% endif %}
 
     <tr class="{{ 'done' if it.won_this else '' }}"

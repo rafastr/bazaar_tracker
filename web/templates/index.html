@@ -52,7 +52,15 @@
       </p>
     </div>
 
+    <p class="hint" style="margin-top: 8px; margin-bottom: 0;">
+      Perfect runs 🏆: <b>{{ perfect_runs }}</b>
+    </p>
 
+  </div>
+
+  <div class="dash-card">
+    <h2 style="margin-top: 0;">Rank evolution</h2>
+    <canvas id="rankChart" width="520" height="220"></canvas>
   </div>
 
   <script>
@@ -116,6 +124,82 @@
       ctx.textBaseline = "middle";
       ctx.fillText(total + " runs", cx, cy);
     })();
+      // Graph of ranks
+    (function () {
+      const data = {{ rank_series|tojson }};
+      const canvas = document.getElementById("rankChart");
+      if (!canvas || !data || data.length < 2) return;
+      
+      const ctx = canvas.getContext("2d");
+      
+      // Make canvas crisp on HiDPI screens
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 520;
+      const cssH = canvas.clientHeight || 220;
+      
+      canvas.width = Math.floor(cssW * dpr);
+      canvas.height = Math.floor(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      
+      const w = cssW;
+      const h = cssH;
+      const pad = 18;
+
+      const ranks = data.map(d => d.rank);
+      const maxRank = Math.max(...ranks);
+      const minRank = Math.min(...ranks);
+        
+      // rank 1 => highest score
+      // rank max => lowest score
+      // Convert rank so "better" (lower) is higher on chart
+      const scores = ranks.map(r => (maxRank + 1) - r);
+      const maxScore = Math.max(...scores);
+      const minScore = Math.min(...scores);
+      
+      function x(i) {
+        const n = data.length - 1;
+        return pad + (n ? (i / n) * (w - pad*2) : 0);
+      }
+      function y(score) {
+        const denom = (maxScore - minScore) || 1;
+        const t = (score - minScore) / denom; // 0..1
+        return (h - pad) - t * (h - pad*2);
+      }
+     
+      // background
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle = "rgba(255,255,255,0.02)";
+      ctx.fillRect(0,0,w,h);
+      
+      // line
+      ctx.beginPath();
+      scores.forEach((s, i) => {
+        const px = x(i);
+        const py = y(s);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.strokeStyle = "rgba(140,220,180,0.85)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    
+      // points
+      ctx.fillStyle = "rgba(233,233,239,0.9)";
+      scores.forEach((s, i) => {
+        ctx.beginPath();
+        ctx.arc(x(i), y(s), 2.5, 0, Math.PI*2);
+        ctx.fill();
+      });
+    
+      // label (latest)
+      const last = data[data.length - 1];
+      ctx.fillStyle = "rgba(233,233,239,0.75)";
+      ctx.font = "16px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(`Latest: #${last.rank}  (best #${minRank}, worst #${maxRank})`, pad, pad);
+    })();
+
   </script>
 
 

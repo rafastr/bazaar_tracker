@@ -158,6 +158,21 @@ def build_index_context(
     )
     rows = [dict(r) for r in cur.fetchall()]
 
+    # --- perfect runs (confirmed + won + prestige>=20) ---
+    cur.execute(
+        """
+        SELECT COUNT(*) AS n
+        FROM runs r
+        LEFT JOIN run_overrides o ON o.run_id = r.run_id
+        LEFT JOIN run_metrics  m ON m.run_id = r.run_id
+        WHERE COALESCE(o.is_confirmed, 0) = 1
+          AND COALESCE(m.won, 0) = 1
+          AND COALESCE(m.prestige, 0) >= 20
+        """
+    )
+    row = cur.fetchone()
+    perfect_runs = int(row["n"]) if row else 0
+
     stats_by_hero: dict[str, dict[str, Any]] = {}
     for r in rows:
         hero = (r.get("hero") or "(unknown)").strip() or "(unknown)"
@@ -206,8 +221,24 @@ def build_index_context(
     ach_unlocked = sum(1 for r in ach_rows if r.get("unlocked_at_unix"))
     ach_total = len(ach_rows)
 
+    # --- rank evolution (confirmed runs with rank) ---
+    cur.execute(
+        """
+        SELECT
+          r.run_id,
+          COALESCE(o.rank_override, r.rank) AS rank_eff
+        FROM runs r
+        LEFT JOIN run_overrides o ON o.run_id = r.run_id
+        WHERE COALESCE(o.is_confirmed, 0) = 1
+          AND COALESCE(o.rank_override, r.rank) IS NOT NULL
+        ORDER BY r.run_id ASC
+        """
+    )
+    rank_series = [{"run_id": int(r["run_id"]), "rank": int(r["rank_eff"])} for r in cur.fetchall()]
+
     return {
         "overall": overall,
+        "perfect_runs": perfect_runs,
         "group_stats": group_stats,
         "hero_pie": hero_pie,
         "last10_list": last10_list,
@@ -217,4 +248,5 @@ def build_index_context(
         "achievements": ach_rows,
         "ach_unlocked": ach_unlocked,
         "ach_total": ach_total,
+        "rank_series": rank_series,
     }
