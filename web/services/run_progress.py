@@ -129,8 +129,14 @@ def get_run_item_progress_table(
         try:
             tcur = tconn.cursor()
             qmarks = ",".join("?" for _ in tids)
+
             tcur.execute(
-                f"SELECT template_id, name, heroes_json, size FROM templates WHERE template_id IN ({qmarks})",
+                f"""
+                SELECT template_id, name, heroes_json, size
+                FROM templates
+                WHERE template_id IN ({qmarks})
+                  AND COALESCE(ignored, 0) = 0
+                """,
                 tuple(tids),
             )
             trows = {r["template_id"]: dict(r) for r in tcur.fetchall()}
@@ -213,9 +219,13 @@ def get_run_item_progress_table(
                 won_other_map[tid] = True
 
         for tid in tids:
-            tr = trows.get(tid) or {}
+            tr = trows.get(tid)
+            if not tr:
+                continue
+        
             name = tr.get("name") or tid
             size = tr.get("size") or ""
+
 
             won_this = bool(won_any.get(tid, False))
             won_other = bool(won_other_map.get(tid, False))

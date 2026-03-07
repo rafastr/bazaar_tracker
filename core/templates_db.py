@@ -144,7 +144,8 @@ class TemplatesDb:
         sql = """
             SELECT template_id, name
             FROM templates
-            WHERE image_path IS NULL OR image_path=''
+            WHERE image_path IS NULL OR image_path='' 
+              AND COALESCE(ignored, 0) = 0
             ORDER BY name ASC
         """
         if limit and limit > 0:

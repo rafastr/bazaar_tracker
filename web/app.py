@@ -188,7 +188,10 @@ def create_app() -> Flask:
     def item_image(template_id: str):
         conn = get_templates_conn()
         cur = conn.cursor()
-        cur.execute("SELECT image_path FROM templates WHERE template_id = ?", (template_id,))
+        cur.execute(
+            "SELECT image_path FROM templates WHERE template_id = ? AND COALESCE(ignored, 0) = 0",
+            (template_id,),
+        )
         row = cur.fetchone()
         if not row or not row["image_path"]:
             abort(404)

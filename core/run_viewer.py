@@ -170,7 +170,12 @@ def get_run_board(
             # Resolve using EFFECTIVE template id (not base)
             if template_eff:
                 tcur.execute(
-                    "SELECT name, art_key FROM templates WHERE template_id = ?",
+                    '''
+                    SELECT name, art_key
+                    FROM templates
+                    WHERE template_id = ?
+                      AND COALESCE(ignored, 0) = 0
+                    ''',
                     (template_eff,),
                 )
                 trow = tcur.fetchone()
@@ -264,13 +269,15 @@ def search_templates(
             f"""
             SELECT template_id, name, size
             FROM templates
-            WHERE name IS NOT NULL
+            WHERE COALESCE(ignored, 0) = 0
+              AND name IS NOT NULL
               AND LOWER(name) LIKE ?
               {size_clause}
             LIMIT 250
             """,
             tuple(params),
         )
+
         rows = cur.fetchall()
 
         # Fallback if LIKE returns nothing
@@ -285,12 +292,14 @@ def search_templates(
                 f"""
                 SELECT template_id, name, size
                 FROM templates
-                WHERE name IS NOT NULL
+                WHERE COALESCE(ignored, 0) = 0
+                  AND name IS NOT NULL
                   {size_clause2}
                 LIMIT 250
                 """,
                 tuple(params2),
             )
+            
             rows = cur.fetchall()
 
         scored = []

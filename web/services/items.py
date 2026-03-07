@@ -17,7 +17,13 @@ def get_hero_list(templates_db_path: str, conn: sqlite3.Connection | None = None
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT heroes_json FROM templates WHERE heroes_json IS NOT NULL AND TRIM(heroes_json) <> ''"
+            '''
+            SELECT heroes_json
+            FROM templates
+            WHERE COALESCE(ignored, 0) = 0
+              AND heroes_json IS NOT NULL
+              AND TRIM(heroes_json) <> ''
+            '''
         )
         for row in cur.fetchall():
             s = row["heroes_json"]
@@ -93,7 +99,14 @@ def get_item_checklist(templates_db_path: str, run_history_db_path: str, *, tcon
 
     try:
         tcur = tconn.cursor()
-        tcur.execute("SELECT template_id, name, heroes_json, size FROM templates WHERE template_id IS NOT NULL")
+        tcur.execute(
+            """
+            SELECT template_id, name, heroes_json, size
+            FROM templates
+            WHERE template_id IS NOT NULL
+              AND COALESCE(ignored, 0) = 0
+            """
+        )
         templates = [dict(r) for r in tcur.fetchall()]
     finally:
         if t_owns:

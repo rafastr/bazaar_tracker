@@ -865,7 +865,14 @@ class RunHistoryDb:
         tconn.row_factory = sqlite3.Row
         try:
             tcur = tconn.cursor()
-            tcur.execute("SELECT template_id, heroes_json FROM templates WHERE template_id IS NOT NULL")
+            tcur.execute(
+                """
+                SELECT template_id, heroes_json
+                FROM templates
+                WHERE template_id IS NOT NULL
+                  AND COALESCE(ignored, 0) = 0
+                """
+            )
             template_rows = tcur.fetchall()
         finally:
             tconn.close()
@@ -1163,7 +1170,14 @@ class RunHistoryDb:
         tconn.row_factory = sqlite3.Row
         try:
             tcur = tconn.cursor()
-            tcur.execute("SELECT template_id, heroes_json FROM templates WHERE template_id IS NOT NULL")
+            tcur.execute(
+                """
+                SELECT template_id, heroes_json
+                FROM templates
+                WHERE template_id IS NOT NULL
+                  AND COALESCE(ignored, 0) = 0
+                """
+            )
             rows = tcur.fetchall()
         finally:
             tconn.close()
