@@ -266,6 +266,15 @@ def ensure_image_path_column(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
+def ensure_ignored_column(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(templates)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "ignored" not in cols:
+        cur.execute("ALTER TABLE templates ADD COLUMN ignored INTEGER DEFAULT 0")
+        conn.commit()
+
+
 def clear_image_path(cur: sqlite3.Cursor, conn: sqlite3.Connection, template_id: str) -> None:
     cur.execute("UPDATE templates SET image_path=NULL WHERE template_id=?", (template_id,))
     conn.commit()
@@ -302,9 +311,13 @@ def main() -> None:
     conn.row_factory = sqlite3.Row
 
     ensure_image_path_column(conn)
+    ensure_ignored_column(conn)
 
     cur = conn.cursor()
-    cur.execute("SELECT template_id, name, image_path FROM templates ORDER BY name ASC")
+    cur.execute(
+        "SELECT template_id, name, image_path FROM templates "
+        "WHERE ignored=0 ORDER BY name ASC"
+    )
     rows = cur.fetchall()
     print(f"Need images for: {len(rows)} items")
 
@@ -348,12 +361,18 @@ def main() -> None:
                 timeout=args.timeout,
                 debug=args.debug,
             )
+
             if not img_url:
                 if args.force:
-                    clear_image_path(cur, conn, template_id)
-                    print(f"[UNRESOLVED] {name} ({template_id}) cleared stale image_path")
+                    cur.execute(
+                        "UPDATE templates SET ignored=1, image_path=NULL WHERE template_id=?",
+                        (template_id,),
+                    )
+                    conn.commit()
+                    print(f"[IGNORED] {name} ({template_id}) not found in BazaarDB")
                 else:
                     print(f"[UNRESOLVED] {name} ({template_id}) card={card_url}")
+            
                 unresolved += 1
                 time.sleep(args.sleep)
                 continue

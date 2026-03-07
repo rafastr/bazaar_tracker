@@ -37,17 +37,26 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def should_skip_template(name: str) -> bool:
-    if not name:
-        return True
-
+def should_import_item(name: str) -> bool:
+    """Filter obvious non-game items from cards.json."""
     name = name.strip()
 
-    # Skip debug/template placeholders
-    if name.startswith("["):
-        return True
+    if not name:
+        return False
 
-    return False
+    # any debug / placeholder items with brackets
+    if "[" in name:
+        return False
+
+    # template placeholders
+    if "TEMPLATE" in name.upper():
+        return False
+
+    # debug entries
+    if "DEBUG" in name.upper():
+        return False
+
+    return True
 
 
 def _safe_get_title_text(card: Dict[str, Any]) -> Optional[str]:
@@ -99,7 +108,7 @@ def main() -> None:
             if not isinstance(name, str):
                 name = str(name)
             
-            if should_skip_template(name):
+            if not should_import_item(name):
                 skipped_templates += 1
                 continue
 
