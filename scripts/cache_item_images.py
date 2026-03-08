@@ -287,39 +287,38 @@ def build_image_paths(out_dir: str, template_id: str) -> tuple[str, str]:
     return disk_path, db_path
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Cache BazaarDB item images locally keyed by template_id")
-    ap.add_argument("--db", required=True, help="Path to templates sqlite db (e.g. db/templates.sqlite3)")
-    ap.add_argument("--out-dir", default="assets/images/items", help="Where to store downloaded images")
-    ap.add_argument("--sleep", type=float, default=0.7, help="Delay between items (seconds)")
-    ap.add_argument("--limit", type=int, default=0, help="Stop after N successful downloads (0 = no limit)")
-    ap.add_argument("--force", action="store_true", help="Re-download even if image_path already set")
-    ap.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds")
-    ap.add_argument("--insecure", action="store_true", help="Disable TLS certificate verification for BazaarDB")
-    ap.add_argument("--debug", action="store_true", help="Print search/card debug info")
-    args = ap.parse_args()
+def cache_item_images(
+    db_path: str,
+    out_dir: str = "assets/images/items",
+    sleep: float = 0.7,
+    limit: int = 0,
+    force: bool = False,
+    timeout: int = 30,
+    insecure: bool = False,
+    debug: bool = False,
+) -> dict:
 
-    if args.insecure:
+    if insecure:
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    session = build_session(insecure=args.insecure)
-    print(f"TLS verify: {session.verify}")
+    session = build_session(insecure=insecure)
 
-    ensure_dir(args.out_dir)
+    ensure_dir(out_dir)
 
-    conn = sqlite3.connect(args.db)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
     ensure_image_path_column(conn)
     ensure_ignored_column(conn)
 
     cur = conn.cursor()
+
     cur.execute(
         "SELECT template_id, name, image_path FROM templates "
         "WHERE ignored=0 ORDER BY name ASC"
     )
+
     rows = cur.fetchall()
-    print(f"Need images for: {len(rows)} items")
 
     ok = 0
     skipped = 0
@@ -328,81 +327,120 @@ def main() -> None:
     failed = 0
 
     for r in rows:
+
         template_id = str(r["template_id"])
         name = str(r["name"])
         existing_image_path = r["image_path"]
 
-        disk_path, db_path = build_image_paths(args.out_dir, template_id)
+        disk_path, db_path_img = build_image_paths(out_dir, template_id)
 
-        # Prefer canonical disk location. If it exists, repair DB path if needed.
-        if (not args.force) and os.path.exists(disk_path):
-            if existing_image_path != db_path:
-                cur.execute("UPDATE templates SET image_path=? WHERE template_id=?", (db_path, template_id))
+        if (not force) and os.path.exists(disk_path):
+            if existing_image_path != db_path_img:
+                cur.execute(
+                    "UPDATE templates SET image_path=? WHERE template_id=?",
+                    (db_path_img, template_id),
+                )
                 conn.commit()
                 fixed += 1
-                print(f"[FIX] {name} repaired DB path -> {db_path}")
             else:
                 skipped += 1
-                print(f"[SKIP] {name} already on disk -> {db_path}")
             continue
 
-        # If DB already points somewhere valid, skip.
-        if (not args.force) and existing_image_path:
+        if (not force) and existing_image_path:
             existing_disk_path = os.path.normpath(existing_image_path)
             if os.path.exists(existing_disk_path):
                 skipped += 1
-                print(f"[SKIP] {name} already exists -> {existing_image_path}")
                 continue
 
         try:
+
             card_url, img_url = resolve_bazaardb_image_url(
                 session,
                 name,
-                timeout=args.timeout,
-                debug=args.debug,
+                timeout=timeout,
+                debug=debug,
             )
 
             if not img_url:
-                if args.force:
+
+                if force:
                     cur.execute(
                         "UPDATE templates SET ignored=1, image_path=NULL WHERE template_id=?",
                         (template_id,),
                     )
                     conn.commit()
-                    print(f"[IGNORED] {name} ({template_id}) not found in BazaarDB")
-                else:
-                    print(f"[UNRESOLVED] {name} ({template_id}) card={card_url}")
-            
+
                 unresolved += 1
-                time.sleep(args.sleep)
+                time.sleep(sleep)
                 continue
 
-            data = fetch_bytes(session, img_url, timeout=max(args.timeout, 60))
+            data = fetch_bytes(session, img_url, timeout=max(timeout, 60))
+
             with open(disk_path, "wb") as f:
                 f.write(data)
 
-            cur.execute("UPDATE templates SET image_path=? WHERE template_id=?", (db_path, template_id))
+            cur.execute(
+                "UPDATE templates SET image_path=? WHERE template_id=?",
+                (db_path_img, template_id),
+            )
+
             conn.commit()
 
             ok += 1
-            print(f"[OK] {name} -> {db_path}")
 
-            if args.limit and ok >= args.limit:
+            if limit and ok >= limit:
                 break
 
-        except (requests.RequestException, OSError) as e:
-            if args.force:
+        except (requests.RequestException, OSError):
+
+            if force:
                 clear_image_path(cur, conn, template_id)
+
             failed += 1
-            print(f"[FAIL] {name} ({template_id}): {e}")
 
-        time.sleep(args.sleep)
+        time.sleep(sleep)
 
-    print(
-        f"Downloaded={ok} Skipped={skipped} Fixed={fixed} "
-        f"Unresolved={unresolved} Failed={failed}"
-    )
     conn.close()
+
+
+    return {
+        "ok": True,
+        "message": "Item image cache updated",
+        "downloaded": ok,
+        "skipped": skipped,
+        "fixed": fixed,
+        "unresolved": unresolved,
+        "failed": failed,
+    }
+
+
+def main() -> None:
+
+    ap = argparse.ArgumentParser(description="Cache BazaarDB item images locally keyed by template_id")
+
+    ap.add_argument("--db", required=True)
+    ap.add_argument("--out-dir", default="assets/images/items")
+    ap.add_argument("--sleep", type=float, default=0.7)
+    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--timeout", type=int, default=30)
+    ap.add_argument("--insecure", action="store_true")
+    ap.add_argument("--debug", action="store_true")
+
+    args = ap.parse_args()
+
+    result = cache_item_images(
+        db_path=args.db,
+        out_dir=args.out_dir,
+        sleep=args.sleep,
+        limit=args.limit,
+        force=args.force,
+        timeout=args.timeout,
+        insecure=args.insecure,
+        debug=args.debug,
+    )
+
+    print(result)
 
 
 if __name__ == "__main__":

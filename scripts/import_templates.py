@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import platform
 import argparse
@@ -22,7 +24,7 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument(
         "cards_json",
-        nargs="?",  # now optional
+        nargs="?",
         default=default_cards_path(),
         help="Path to cards.json (defaults to Windows install path)",
     )
@@ -44,15 +46,12 @@ def should_import_item(name: str) -> bool:
     if not name:
         return False
 
-    # any debug / placeholder items with brackets
     if "[" in name:
         return False
 
-    # template placeholders
     if "TEMPLATE" in name.upper():
         return False
 
-    # debug entries
     if "DEBUG" in name.upper():
         return False
 
@@ -70,13 +69,18 @@ def _safe_get_title_text(card: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def main() -> None:
-    args = parse_args()
+# ------------------------------------------------------------
+# Core callable function
+# ------------------------------------------------------------
 
-    with open(args.cards_json, "r", encoding="utf-8") as f:
+def import_templates_from_cards(
+    cards_json: str,
+    db_path: str,
+) -> dict[str, Any]:
+
+    with open(cards_json, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Root looks like { "5.0.0": [ ... ] }
     if not isinstance(data, dict) or not data:
         raise RuntimeError("Unexpected JSON structure: expected object with version key(s)")
 
@@ -92,6 +96,7 @@ def main() -> None:
         for card in cards:
 
             total_cards += 1
+
             if not isinstance(card, dict):
                 continue
 
@@ -107,7 +112,7 @@ def main() -> None:
             name = _safe_get_title_text(card) or card.get("InternalName") or template_id
             if not isinstance(name, str):
                 name = str(name)
-            
+
             if not should_import_item(name):
                 skipped_templates += 1
                 continue
@@ -153,22 +158,48 @@ def main() -> None:
                 }
             )
 
-    db = TemplatesDb(args.db_path)
+    db = TemplatesDb(db_path)
+
     try:
         chunk_size = 1000
+
         for i in range(0, len(all_rows), chunk_size):
             db.upsert_templates(all_rows[i : i + chunk_size])
+
     finally:
         db.close()
+
+    return {
+        "ok": True,
+        "message": "Templates imported",
+        "source": cards_json,
+        "db": db_path,
+        "cards_seen": total_cards,
+        "items_imported": len(all_rows),
+        "templates_skipped": skipped_templates,
+    }
+
+
+# ------------------------------------------------------------
+# CLI wrapper
+# ------------------------------------------------------------
+
+def main() -> None:
+    args = parse_args()
+
+    result = import_templates_from_cards(
+        cards_json=args.cards_json,
+        db_path=args.db_path,
+    )
 
     print(
         {
             "type": "TemplatesImported",
-            "source": args.cards_json,
-            "db": args.db_path,
-            "cards_seen": total_cards,
-            "items_imported": len(all_rows),
-            "templates_skipped": skipped_templates,
+            "source": result["source"],
+            "db": result["db"],
+            "cards_seen": result["cards_seen"],
+            "items_imported": result["items_imported"],
+            "templates_skipped": result["templates_skipped"],
         }
     )
 

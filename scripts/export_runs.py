@@ -95,20 +95,30 @@ def rows_to_dicts(db: RunHistoryDb, sql: str, columns: tuple[str, ...]) -> list[
     return [{col: row[col] for col in columns} for row in rows]
 
 
-def main() -> None:
-    args = parse_args()
+def export_runs_to_json(
+    db_path: str,
+    out_json: str,
+    pretty: bool = False,
+) -> dict[str, Any]:
+    """
+    Export run history data to a JSON file.
 
-    out_parent = os.path.dirname(args.out_json)
+    Returns a summary dict that can be used by:
+    - CLI scripts
+    - Flask routes
+    - future launcher / GUI code
+    """
+    out_parent = os.path.dirname(out_json)
     if out_parent:
         os.makedirs(out_parent, exist_ok=True)
 
-    db = RunHistoryDb(args.db_path)
+    db = RunHistoryDb(db_path)
     try:
         payload: dict[str, Any] = {
             "export_version": 1,
             "app": "bazaar_tracker",
             "exported_at_unix": int(time.time()),
-            "source_db": args.db_path,
+            "source_db": db_path,
         }
 
         counts: dict[str, int] = {}
@@ -119,23 +129,46 @@ def main() -> None:
 
         payload["counts"] = counts
 
-        with open(args.out_json, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2 if args.pretty else None)
+        with open(out_json, "w", encoding="utf-8") as f:
+            json.dump(
+                payload,
+                f,
+                ensure_ascii=False,
+                indent=2 if pretty else None,
+            )
 
-        print("\nExport completed")
-        for table_name in TABLE_SPECS:
-            print(f"{table_name}: {counts.get(table_name, 0)}")
-
-        print(
-            {
-                "type": "RunsExported",
-                "db": args.db_path,
-                "out": args.out_json,
-                "counts": counts,
-            }
-        )
+        return {
+            "ok": True,
+            "message": "Export completed",
+            "db": db_path,
+            "out_path": out_json,
+            "counts": counts,
+        }
     finally:
         db.close()
+
+
+def main() -> None:
+    args = parse_args()
+
+    result = export_runs_to_json(
+        db_path=args.db_path,
+        out_json=args.out_json,
+        pretty=args.pretty,
+    )
+
+    print("\n" + result["message"])
+    for table_name in TABLE_SPECS:
+        print(f"{table_name}: {result['counts'].get(table_name, 0)}")
+
+    print(
+        {
+            "type": "RunsExported",
+            "db": result["db"],
+            "out": result["out_path"],
+            "counts": result["counts"],
+        }
+    )
 
 
 if __name__ == "__main__":

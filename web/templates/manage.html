@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="manage-page">
+    <div class="manage-header">
+      <h1>Manage</h1>
+      <p class="manage-subtitle">
+        Import, export, maintenance, and data update tools.
+      </p>
+    </div>
+
+    {% if result %}
+      <div class="manage-toast manage-toast-{{ result.kind }}">
+        <div class="manage-toast-header">
+          <strong>{{ result.title }}</strong>
+        </div>
+        {% if result.body %}
+          <div class="manage-toast-body">
+            <pre>{{ result.body }}</pre>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="manage-grid">
+      <section class="manage-card">
+        <h2>Export runs</h2>
+        <p class="manage-help">
+          Download a JSON backup of your run history and imported completion data.
+        </p>
+        <form method="post" action="{{ url_for('manage_export') }}">
+          <button type="submit">Download export JSON</button>
+        </form>
+      </section>
+
+      <section class="manage-card">
+        <h2>Import runs JSON</h2>
+        <p class="manage-help">
+          Import a previously exported JSON backup into the tracker.
+        </p>
+        <form method="post" action="{{ url_for('manage_import_json') }}" enctype="multipart/form-data">
+          <input type="file" name="file" accept=".json" required>
+          <button type="submit">Import runs JSON</button>
+        </form>
+      </section>
+
+      <section class="manage-card">
+        <h2>Import completion CSV</h2>
+        <p class="manage-help">
+          Import checklist progress from the community spreadsheet CSV.
+        </p>
+        <form method="post" action="{{ url_for('manage_import_csv') }}" enctype="multipart/form-data">
+          <input type="file" name="file" accept=".csv" required>
+
+          <label class="manage-check">
+            <input type="checkbox" name="replace" value="1">
+            Replace previous imported completion
+          </label>
+
+          <button type="submit">Import completion CSV</button>
+        </form>
+      </section>
+
+      <section class="manage-card">
+        <h2>Update template database</h2>
+        <p class="manage-help">
+          Import or refresh templates from The Bazaar <code>cards.json</code>.
+        </p>
+        <form method="post" action="{{ url_for('manage_update_templates') }}">
+          <label for="cards_json">cards.json path</label>
+          <input
+            id="cards_json"
+            type="text"
+            name="cards_json"
+            value="{{ default_cards_path or '' }}"
+            placeholder="Path to cards.json"
+            class="manage-input"
+          >
+
+          <label class="manage-check">
+            <input
+              type="checkbox"
+              name="use_default_cards_path"
+              value="1"
+              {% if default_cards_path %}checked{% endif %}
+            >
+            Use default Windows install path
+          </label>
+
+          {% if default_cards_path %}
+            <div class="manage-note">
+              Default path:
+              <code>{{ default_cards_path }}</code>
+            </div>
+          {% else %}
+            <div class="manage-note">
+              No default Windows path available on this system. Enter the path manually.
+            </div>
+          {% endif %}
+
+          <button type="submit">Update templates DB</button>
+        </form>
+      </section>
+
+      <section class="manage-card">
+        <h2>Update item image cache</h2>
+        <p class="manage-help">
+          Download missing item images from BazaarDB and repair broken image paths.
+        </p>
+        <form method="post" action="{{ url_for('manage_cache_images') }}">
+          <div class="manage-inline-grid">
+            <label class="manage-check">
+              <input type="checkbox" name="force" value="1">
+              Force refresh
+            </label>
+
+            <label class="manage-check">
+              <input type="checkbox" name="insecure" value="1">
+              Insecure TLS
+            </label>
+          </div>
+
+          <div class="manage-inline-grid">
+            <div>
+              <label for="cache_limit">Limit</label>
+              <input id="cache_limit" type="number" name="limit" value="0" min="0" class="manage-input">
+            </div>
+
+            <div>
+              <label for="cache_sleep">Sleep</label>
+              <input id="cache_sleep" type="number" name="sleep" value="0.7" min="0" step="0.1" class="manage-input">
+            </div>
+          </div>
+
+          <button type="submit">Update item images</button>
+        </form>
+      </section>
+
+      <section class="manage-card">
+        <h2>Doctor</h2>
+        <p class="manage-help">
+          Run a health check on the tracker databases, files, and references.
+        </p>
+        <form method="post" action="{{ url_for('manage_doctor') }}">
+          <button type="submit">Run doctor</button>
+        </form>
+      </section>
+    </div>
+  </div>
+
+  <style>
+    .manage-page {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .manage-header {
+      margin-bottom: 1.25rem;
+    }
+
+    .manage-subtitle {
+      margin-top: 0.25rem;
+      opacity: 0.8;
+    }
+
+    .manage-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+    }
+
+    .manage-card {
+      padding: 1rem;
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 12px;
+    }
+
+    .manage-card h2 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-size: 1.1rem;
+    }
+
+    .manage-help {
+      margin-top: 0;
+      margin-bottom: 0.9rem;
+      opacity: 0.85;
+      line-height: 1.4;
+    }
+
+    .manage-input {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 0.75rem;
+    }
+
+    .manage-check {
+      display: block;
+      margin-bottom: 0.75rem;
+    }
+
+    .manage-inline-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .manage-note {
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+      opacity: 0.85;
+      line-height: 1.4;
+    }
+
+    .manage-toast {
+      margin-bottom: 1rem;
+      padding: 0.9rem 1rem;
+      border-radius: 10px;
+      border: 1px solid;
+    }
+
+    .manage-toast-success {
+      border-color: #86efac;
+      color: #14532d;
+    }
+
+    .manage-toast-info {
+      border-color: #93c5fd;
+      color: #1e3a8a;
+    }
+
+    .manage-toast-header {
+      margin-bottom: 0.5rem;
+    }
+
+    .manage-toast-body pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+  </style>
+{% endblock %}

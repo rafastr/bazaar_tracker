@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sqlite3
-from typing import Iterable
+from typing import Iterable, Any
 
 from core.config import settings
 from core.db_utils import connect_db
@@ -41,13 +41,11 @@ def has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
     return any(r[1] == column for r in cur.fetchall())
 
 
-def main() -> None:
-    args = parse_args()
-
+def run_doctor(db_path: str, templates_db_path: str) -> dict[str, Any]:
     problems: list[str] = []
     notes: list[str] = []
 
-    with connect_db(args.templates_db_path) as tconn, connect_db(args.db_path) as hconn:
+    with connect_db(templates_db_path) as tconn, connect_db(db_path) as hconn:
         tcur = tconn.cursor()
         hcur = hconn.cursor()
 
@@ -133,68 +131,43 @@ def main() -> None:
             """,
         )
 
-        # --- missing template references from run_items ---
-        missing_run_item_templates = scalar(
-            hconn,
-            """
-            SELECT COUNT(*)
-            FROM run_items i
-            LEFT JOIN main.runs r ON r.run_id = i.run_id
-            WHERE i.template_id IS NOT NULL
-              AND TRIM(i.template_id) <> ''
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM templates_db.templates t
-                  WHERE t.template_id = i.template_id
-              )
-            """,
-        ) if False else 0
+        # --- cross-db template reference checks ---
+        hcur.execute("ATTACH DATABASE ? AS templates_db", (templates_db_path,))
 
-        # We cannot query cross-db unless we ATTACH, so do that:
-        hcur.execute("ATTACH DATABASE ? AS templates_db", (args.templates_db_path,))
+        try:
+            missing_run_item_templates = scalar(
+                hconn,
+                """
+                SELECT COUNT(*)
+                FROM run_items i
+                WHERE i.template_id IS NOT NULL
+                  AND TRIM(i.template_id) <> ''
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM templates_db.templates t
+                      WHERE t.template_id = i.template_id
+                  )
+                """,
+            )
 
-        missing_run_item_templates = scalar(
-            hconn,
-            """
-            SELECT COUNT(*)
-            FROM run_items i
-            WHERE i.template_id IS NOT NULL
-              AND TRIM(i.template_id) <> ''
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM templates_db.templates t
-                  WHERE t.template_id = i.template_id
-              )
-            """,
-        )
-
-        missing_item_override_templates = scalar(
-            hconn,
-            """
-            SELECT COUNT(*)
-            FROM run_item_overrides o
-            WHERE o.template_id_override IS NOT NULL
-              AND TRIM(o.template_id_override) <> ''
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM templates_db.templates t
-                  WHERE t.template_id = o.template_id_override
-              )
-            """,
-        )
+            missing_item_override_templates = scalar(
+                hconn,
+                """
+                SELECT COUNT(*)
+                FROM run_item_overrides o
+                WHERE o.template_id_override IS NOT NULL
+                  AND TRIM(o.template_id_override) <> ''
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM templates_db.templates t
+                      WHERE t.template_id = o.template_id_override
+                  )
+                """,
+            )
+        finally:
+            hcur.execute("DETACH DATABASE templates_db")
 
         # --- broken screenshots ---
-        broken_screenshots = scalar(
-            hconn,
-            """
-            SELECT COUNT(*)
-            FROM runs
-            WHERE screenshot_path IS NOT NULL
-              AND TRIM(screenshot_path) <> ''
-            """,
-        )
-
-        # Need actual filesystem check
         hcur.execute(
             """
             SELECT screenshot_path
@@ -204,13 +177,12 @@ def main() -> None:
             """
         )
         screenshot_rows = hcur.fetchall()
+
         broken_screenshots = 0
         for r in screenshot_rows:
             path = (r["screenshot_path"] or "").strip()
             if path and not os.path.exists(os.path.normpath(path)):
                 broken_screenshots += 1
-
-        hcur.execute("DETACH DATABASE templates_db")
 
         # --- build problems list ---
         if image_missing:
@@ -237,18 +209,35 @@ def main() -> None:
         notes.append(f"{active_templates} active templates")
         notes.append(f"{image_set} templates have image_path set")
 
+    return {
+        "ok": len(problems) == 0,
+        "message": "No problems found." if not problems else "Problems found.",
+        "problems": problems,
+        "notes": notes,
+        "db": db_path,
+        "templates_db": templates_db_path,
+    }
+
+
+def main() -> None:
+    args = parse_args()
+    result = run_doctor(
+        db_path=args.db_path,
+        templates_db_path=args.templates_db_path,
+    )
+
     print("\nBazaar Tracker doctor\n")
 
-    if problems:
+    if result["problems"]:
         print("Problems found:")
-        for p in problems:
+        for p in result["problems"]:
             print(f"- {p}")
     else:
         print("No problems found.")
 
-    if notes:
+    if result["notes"]:
         print("\nNotes:")
-        for n in notes:
+        for n in result["notes"]:
             print(f"- {n}")
 
 

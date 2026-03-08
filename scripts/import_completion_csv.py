@@ -120,9 +120,18 @@ def choose_template(
     return None, "ambiguous"
 
 
-def main() -> None:
-    args = parse_args()
-    templates_by_name = load_templates(args.templates_db_path)
+# ------------------------------------------------------------
+# Core logic function (used by CLI + Flask)
+# ------------------------------------------------------------
+
+def import_completion_csv_file(
+    csv_path: str,
+    db_path: str,
+    templates_db_path: str,
+    replace: bool = False,
+) -> dict[str, Any]:
+
+    templates_by_name = load_templates(templates_db_path)
     now = int(time.time())
 
     matched = 0
@@ -131,14 +140,14 @@ def main() -> None:
     imported = 0
     skipped_empty = 0
 
-    with connect_db(args.db_path) as conn:
+    with connect_db(db_path) as conn:
         ensure_imported_item_completion_table(conn)
         cur = conn.cursor()
 
-        if args.replace:
+        if replace:
             cur.execute("DELETE FROM imported_item_completion")
 
-        with open(args.csv_path, "r", encoding="utf-8-sig", newline="") as f:
+        with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
             reader = csv.DictReader(f)
 
             for row in reader:
@@ -149,12 +158,10 @@ def main() -> None:
                 ten_wins = truthy(get_field(row, "10 Wins"))
                 win_other = truthy(get_field(row, "Win with Another Hero"))
 
-                # No useful completion info in this row
                 if not ten_wins and not win_other:
                     skipped_empty += 1
                     continue
 
-                # Derive "won this" conservatively from available columns
                 win_this = ten_wins or win_other
 
                 csv_size = norm_size(get_field(row, "Size"))
@@ -163,12 +170,10 @@ def main() -> None:
 
                 if status == "unmatched":
                     unmatched += 1
-                    print(f"[UNMATCHED] {item_name}")
                     continue
 
                 if status == "ambiguous":
                     ambiguous += 1
-                    print(f"[AMBIGUOUS] {item_name}")
                     continue
 
                 matched += 1
@@ -196,18 +201,45 @@ def main() -> None:
                         1 if win_this else 0,
                         1 if win_other else 0,
                         1 if ten_wins else 0,
-                        args.csv_path,
+                        csv_path,
                         now,
                     ),
                 )
+
                 imported += 1
 
+    return {
+        "ok": True,
+        "message": "Completion CSV import completed",
+        "csv": csv_path,
+        "matched": matched,
+        "imported": imported,
+        "unmatched": unmatched,
+        "ambiguous": ambiguous,
+        "skipped_empty": skipped_empty,
+    }
+
+
+# ------------------------------------------------------------
+# CLI wrapper
+# ------------------------------------------------------------
+
+def main() -> None:
+    args = parse_args()
+
+    result = import_completion_csv_file(
+        csv_path=args.csv_path,
+        db_path=args.db_path,
+        templates_db_path=args.templates_db_path,
+        replace=args.replace,
+    )
+
     print("\nCompletion CSV import summary")
-    print(f"matched: {matched}")
-    print(f"imported: {imported}")
-    print(f"unmatched: {unmatched}")
-    print(f"ambiguous: {ambiguous}")
-    print(f"skipped_empty: {skipped_empty}")
+    print(f"matched: {result['matched']}")
+    print(f"imported: {result['imported']}")
+    print(f"unmatched: {result['unmatched']}")
+    print(f"ambiguous: {result['ambiguous']}")
+    print(f"skipped_empty: {result['skipped_empty']}")
 
 
 if __name__ == "__main__":
