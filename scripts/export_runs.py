@@ -57,6 +57,17 @@ TABLE_SPECS: dict[str, tuple[str, tuple[str, ...]]] = {
         "SELECT season_id, first_seen_at_unix, source_run_id, note FROM season_markers ORDER BY season_id ASC",
         ("season_id", "first_seen_at_unix", "source_run_id", "note"),
     ),
+    "imported_item_completion": (
+        "SELECT template_id, win_this, win_other, ten_wins, source, imported_at_unix FROM imported_item_completion ORDER BY template_id ASC",
+        (
+            "template_id",
+            "win_this",
+            "win_other",
+            "ten_wins",
+            "source",
+            "imported_at_unix",
+        ),
+    ),
 }
 
 

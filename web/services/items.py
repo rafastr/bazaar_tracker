@@ -59,7 +59,6 @@ def get_hero_list(templates_db_path: str, conn: sqlite3.Connection | None = None
 
 
 def get_item_checklist(templates_db_path: str, run_history_db_path: str, *, tconn: sqlite3.Connection | None = None, hconn: sqlite3.Connection | None = None) -> list[dict]:
-    import sqlite3, json
 
     def parse_origin_heroes(heroes_json: str) -> set[str]:
         """
@@ -127,6 +126,35 @@ def get_item_checklist(templates_db_path: str, run_history_db_path: str, *, tcon
             """
         )
         rows = hcur.fetchall()
+
+        # to account import from excell manual tracking
+        hcur.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type='table' AND name='imported_item_completion'
+            """
+        )
+        has_imported_completion = hcur.fetchone() is not None
+
+        imported_by_item: dict[str, dict[str, bool]] = {}
+        if has_imported_completion:
+            hcur.execute(
+                """
+                SELECT template_id, win_this, win_other, ten_wins
+                FROM imported_item_completion
+                """
+            )
+            for r in hcur.fetchall():
+                tid = (r["template_id"] or "").strip()
+                if not tid:
+                    continue
+                imported_by_item[tid] = {
+                    "win_this": bool(r["win_this"]),
+                    "win_other": bool(r["win_other"]),
+                    "ten_wins": bool(r["ten_wins"]),
+                }
+
     finally:
         if h_owns:
             hconn.close()
@@ -148,10 +176,11 @@ def get_item_checklist(templates_db_path: str, run_history_db_path: str, *, tcon
 
         name = t.get("name") or ""
         origin_heroes = parse_origin_heroes(t.get("heroes_json") or "")
-        winners = winners_by_item.get(tid, set())
 
-        # ✅ win = used in any won+verified run (any hero)
-        won_any = bool(winners)
+        winners = winners_by_item.get(tid, set())
+        imported = imported_by_item.get(tid, {})
+
+        real_won_any = bool(winners)
 
         # display origin (exclude Common from display)
         origin_no_common = sorted(
@@ -173,12 +202,17 @@ def get_item_checklist(templates_db_path: str, run_history_db_path: str, *, tcon
         # ✅ win_other:
         # - if item is Common => any win counts as "win with another hero"
         # - else => true if there exists a winner hero NOT in origin heroes
-        if not won_any:
-            won_other = False
+        if not real_won_any:
+            real_won_other = False
         elif is_common:
-            won_other = True
+            real_won_other = True
         else:
-            won_other = any(h not in origin_heroes for h in winners)
+            real_won_other = any(h not in origin_heroes for h in winners)
+
+        won_any = real_won_any or bool(imported.get("win_this"))
+        won_other = real_won_other or bool(imported.get("win_other"))
+        ten_wins = bool(imported.get("ten_wins"))
+
 
         out.append(
             {
@@ -189,6 +223,7 @@ def get_item_checklist(templates_db_path: str, run_history_db_path: str, *, tcon
                 "group": group,
                 "won_this": won_any,
                 "won_other": won_other,
+                "ten_wins": ten_wins,
             }
         )
 

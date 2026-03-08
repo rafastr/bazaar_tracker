@@ -79,6 +79,21 @@ TABLE_INSERTS: dict[str, tuple[str, tuple[str, ...]]] = {
         """,
         ("season_id", "first_seen_at_unix", "source_run_id", "note"),
     ),
+    "imported_item_completion": (
+        """
+        INSERT OR IGNORE INTO imported_item_completion (
+            template_id, win_this, win_other, ten_wins, source, imported_at_unix
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "template_id",
+            "win_this",
+            "win_other",
+            "ten_wins",
+            "source",
+            "imported_at_unix",
+        ),
+    ),
 }
 
 
@@ -89,6 +104,7 @@ BASE_TABLES = (
     "run_overrides",
     "run_item_overrides",
     "season_markers",
+    "imported_item_completion",
 )
 
 

@@ -157,6 +157,20 @@ class RunHistoryDb:
             """
         )
 
+        # Allow import of excell manual tracking
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS imported_item_completion (
+                template_id TEXT PRIMARY KEY,
+                win_this INTEGER NOT NULL DEFAULT 0,
+                win_other INTEGER NOT NULL DEFAULT 0,
+                ten_wins INTEGER NOT NULL DEFAULT 0,
+                source TEXT,
+                imported_at_unix INTEGER NOT NULL
+            )
+            """
+        )
+
         # Color of heroes for UI
         cur.execute(
             """

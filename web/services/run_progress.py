@@ -182,6 +182,31 @@ def get_run_item_progress_table(
             for r in cur.fetchall():
                 firsts_by_tid[r["template_id"]] = dict(r)
 
+
+        # imported checklist completion acts like pre-existing progress baseline
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='imported_item_completion'")
+        has_imported_completion = cur.fetchone() is not None
+
+        imported_by_tid: dict[str, dict[str, bool]] = {}
+        if has_imported_completion:
+            cur.execute(
+                """
+                SELECT template_id, win_this, win_other, ten_wins
+                FROM imported_item_completion
+                WHERE template_id IN (%s)
+                """ % (",".join("?" for _ in tids)),
+                tuple(tids),
+            )
+            for r in cur.fetchall():
+                tid = (r["template_id"] or "").strip()
+                if not tid:
+                    continue
+                imported_by_tid[tid] = {
+                    "win_this": bool(r["win_this"]),
+                    "win_other": bool(r["win_other"]),
+                    "ten_wins": bool(r["ten_wins"]),
+                }
+
         # existing progress (after rebuild) from item_hero_wins
         # won_this: any hero has win_count>0 for this tid
         cur.execute(
@@ -222,17 +247,30 @@ def get_run_item_progress_table(
             tr = trows.get(tid)
             if not tr:
                 continue
-        
+
             name = tr.get("name") or tid
             size = tr.get("size") or ""
 
+            imported = imported_by_tid.get(tid, {})
 
-            won_this = bool(won_any.get(tid, False))
-            won_other = bool(won_other_map.get(tid, False))
+            real_won_this = bool(won_any.get(tid, False))
+            real_won_other = bool(won_other_map.get(tid, False))
+
+            won_this = real_won_this or bool(imported.get("win_this"))
+            won_other = real_won_other or bool(imported.get("win_other"))
 
             fi = firsts_by_tid.get(tid, {})
-            new_won_this = bool(fi.get("first_win_run_id") == int(run_id)) if fi else False
-            new_won_other = bool(fi.get("first_cross_win_run_id") == int(run_id)) if fi else False
+
+            imported_win_this = bool(imported.get("win_this"))
+            imported_win_other = bool(imported.get("win_other"))
+
+            new_won_this = (
+                bool(fi.get("first_win_run_id") == int(run_id)) if fi else False
+            ) and not imported_win_this
+
+            new_won_other = (
+                bool(fi.get("first_cross_win_run_id") == int(run_id)) if fi else False
+            ) and not imported_win_other
 
             rows_out.append(
                 {
