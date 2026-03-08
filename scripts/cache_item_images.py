@@ -7,7 +7,9 @@ import re
 import sqlite3
 import time
 import urllib.parse
+
 from typing import Optional, Tuple
+from requests.adapters import HTTPAdapter
 
 import certifi
 import requests
@@ -153,6 +155,15 @@ def build_session(insecure: bool = False) -> requests.Session:
         }
     )
     s.verify = False if insecure else certifi.where()
+
+    adapter = HTTPAdapter(
+        pool_connections=20,
+        pool_maxsize=20,
+        max_retries=1,
+    )
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+
     return s
 
 
@@ -162,7 +173,7 @@ def fetch_text(session: requests.Session, url: str, timeout: int) -> str:
         headers={
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
-        timeout=timeout,
+        timeout=(10, timeout)
     )
     r.raise_for_status()
     return r.text
@@ -174,7 +185,7 @@ def fetch_bytes(session: requests.Session, url: str, timeout: int) -> bytes:
         headers={
             "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         },
-        timeout=timeout,
+        timeout=(10, timeout)
     )
     r.raise_for_status()
     return r.content
