@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import secrets
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
 
 from flask import Flask
 

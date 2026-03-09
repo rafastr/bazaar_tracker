@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional
+import time
 
 from core.config import settings
 from core.run_history_db import RunHistoryDb
@@ -88,6 +89,89 @@ def clear_item_override(run_id: int, socket_number: int) -> None:
     db = RunHistoryDb(settings.run_history_db_path)
     try:
         db.clear_item_override(int(run_id), int(socket_number))
+        _rebuild_after_edit(db)
+    finally:
+        db.close()
+
+
+def update_run_metrics(
+    run_id: int,
+    *,
+    season_id: Optional[int],
+    wins: Optional[int],
+    max_health: Optional[int],
+    prestige: Optional[int],
+    level: Optional[int],
+    income: Optional[int],
+    gold: Optional[int],
+) -> None:
+    db = RunHistoryDb(settings.run_history_db_path)
+    try:
+        cur = db.conn.cursor()
+
+        cur.execute(
+            """
+            UPDATE runs
+            SET season_id = ?
+            WHERE run_id = ?
+            """,
+            (season_id, int(run_id)),
+        )
+
+        if wins is None:
+            won = None
+        else:
+            won = 1 if wins >= 10 else 0
+
+        now = int(time.time())
+
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO run_metrics (
+                run_id,
+                wins,
+                max_health,
+                prestige,
+                level,
+                income,
+                gold,
+                won,
+                ocr_json,
+                ocr_version,
+                updated_at_unix
+            )
+            VALUES (?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?)
+            """,
+            (int(run_id), now),
+        )
+
+        cur.execute(
+            """
+            UPDATE run_metrics
+            SET wins = ?,
+                max_health = ?,
+                prestige = ?,
+                level = ?,
+                income = ?,
+                gold = ?,
+                won = ?,
+                updated_at_unix = ?
+            WHERE run_id = ?
+            """,
+            (
+                wins,
+                max_health,
+                prestige,
+                level,
+                income,
+                gold,
+                won,
+                now,
+                int(run_id),
+            ),
+        )
+
+        db.conn.commit()
         _rebuild_after_edit(db)
     finally:
         db.close()

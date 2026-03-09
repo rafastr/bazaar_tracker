@@ -373,13 +373,13 @@
       {% for a in achievements %}
         {% set is_done = a.unlocked_at_unix is not none %}
         <tr class="{{ 'done' if is_done else '' }} {{ 'row-link' if a.run_id else '' }}"
-            {% if a.run_id %}data-href="{{ url_for('run_detail', run_id=a.run_id) }}"{% endif %}>
+            {% if a.run_id %}data-href="{{ url_for('runs.run_detail', run_id=a.run_id) }}"{% endif %}>
           <td>{{ "✔" if is_done else "" }}</td>
           <td><strong>{{ a.title }}</strong></td>
           <td>{{ a.description }}</td>
           <td>
             {% if a.run_id %}
-              <a href="{{ url_for('run_detail', run_id=a.run_id) }}">#{{ a.run_id }}</a>
+              <a href="{{ url_for('runs.run_detail', run_id=a.run_id) }}">#{{ a.run_id }}</a>
             {% endif %}
           </td>
           <td>

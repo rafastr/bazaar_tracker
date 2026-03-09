@@ -210,6 +210,87 @@
       <div class="hint">No OCR metrics stored yet.</div>
     {% endif %}
 
+    {% if edit_mode %}
+      <section class="edit-card">
+        <h2>Run Metrics</h2>
+    
+        <form method="post" action="{{ url_for('runs.run_metrics_update', run_id=run.run_id) }}">
+          <input type="hidden" name="return_edit" value="1">
+    
+          <div class="form-grid">
+            <label>
+              <span>Season</span>
+              <input
+                type="number"
+                name="season_id"
+                value="{{ run.season_id if run.season_id is not none else '' }}"
+              >
+            </label>
+    
+            <label>
+              <span>Wins</span>
+              <input
+                type="number"
+                name="wins"
+                value="{{ metrics.wins if metrics and metrics.wins is not none else '' }}"
+              >
+            </label>
+    
+            <label>
+              <span>Max Health</span>
+              <input
+                type="number"
+                name="max_health"
+                value="{{ metrics.max_health if metrics and metrics.max_health is not none else '' }}"
+              >
+            </label>
+    
+            <label>
+              <span>Prestige</span>
+              <input
+                type="number"
+                name="prestige"
+                value="{{ metrics.prestige if metrics and metrics.prestige is not none else '' }}"
+              >
+            </label>
+    
+            <label>
+              <span>Level</span>
+              <input
+                type="number"
+                name="level"
+                value="{{ metrics.level if metrics and metrics.level is not none else '' }}"
+              >
+            </label>
+    
+            <label>
+              <span>Income</span>
+              <input
+                type="number"
+                name="income"
+                value="{{ metrics.income if metrics and metrics.income is not none else '' }}"
+              >
+            </label>
+    
+            <label>
+              <span>Gold</span>
+              <input
+                type="number"
+                name="gold"
+                value="{{ metrics.gold if metrics and metrics.gold is not none else '' }}"
+              >
+            </label>
+          </div>
+    
+          <div class="form-actions">
+            <button type="submit">Save Metrics</button>
+          </div>
+        </form>
+      </section>
+    {% endif %}
+
+
+
   <div class="post-board">
     {% if run.notes %}
       <div class="note-preview">

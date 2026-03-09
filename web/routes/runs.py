@@ -15,9 +15,17 @@ from web.services.run_edits import (
     set_hero_override,
     set_item_override,
     set_run_notes,
+    update_run_metrics,
 )
 
 runs_bp = Blueprint("runs", __name__)
+
+
+def _parse_optional_int(value: str | None):
+    s = (value or "").strip()
+    if s == "":
+        return None
+    return int(s)
 
 
 @runs_bp.get("/runs")
@@ -31,7 +39,7 @@ def runs_view():
 def run_latest():
     rid = get_last_run_id(settings.run_history_db_path)
     if rid is None:
-        return redirect(url_for("index"))
+        return redirect(url_for("main.index"))
     return redirect(url_for("runs.run_detail", run_id=rid))
 
 
@@ -77,6 +85,36 @@ def run_detail(run_id: int):
         progress=progress,
         achievements_unlocked=achievements_unlocked,
     )
+
+
+@runs_bp.post("/run/<int:run_id>/metrics")
+def run_metrics_update(run_id: int):
+    try:
+        season_id = _parse_optional_int(request.form.get("season_id"))
+        wins = _parse_optional_int(request.form.get("wins"))
+        max_health = _parse_optional_int(request.form.get("max_health"))
+        prestige = _parse_optional_int(request.form.get("prestige"))
+        level = _parse_optional_int(request.form.get("level"))
+        income = _parse_optional_int(request.form.get("income"))
+        gold = _parse_optional_int(request.form.get("gold"))
+    except ValueError as e:
+        return (str(e), 400)
+
+    update_run_metrics(
+        run_id,
+        season_id=season_id,
+        wins=wins,
+        max_health=max_health,
+        prestige=prestige,
+        level=level,
+        income=income,
+        gold=gold,
+    )
+
+    return_edit = request.form.get("return_edit") == "1"
+    if return_edit:
+        return redirect(url_for("runs.run_detail", run_id=run_id, edit=1))
+    return redirect(url_for("runs.run_detail", run_id=run_id))
 
 
 @runs_bp.get("/screenshot/<int:run_id>")

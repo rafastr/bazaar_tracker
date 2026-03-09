@@ -7,3 +7,4 @@ pytesseract
 opencv-python
 numpy
 certifi
+python-dotenv
