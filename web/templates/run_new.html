@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="dash-card" style="max-width: 900px;">
+    <h1>Add Run</h1>
+    <p class="hint">
+      Create a run manually, then continue to edit the board items on the next screen.
+    </p>
+
+    <form method="post" action="{{ url_for('runs.run_create') }}">
+      <div class="form-grid">
+        <label>
+          <span>Hero</span>
+          <select name="hero">
+            <option value="">(unknown)</option>
+            {% for h in heroes %}
+              <option value="{{ h }}">{{ h }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          <span>Season</span>
+          <input type="number" name="season_id">
+        </label>
+
+        <label>
+          <span>Wins</span>
+          <input type="number" name="wins" min="0" max="10">
+        </label>
+
+        <label>
+          <span>Max Health</span>
+          <input type="number" name="max_health">
+        </label>
+
+        <label>
+          <span>Prestige</span>
+          <input type="number" name="prestige">
+        </label>
+
+        <label>
+          <span>Level</span>
+          <input type="number" name="level">
+        </label>
+
+        <label>
+          <span>Income</span>
+          <input type="number" name="income">
+        </label>
+
+        <label>
+          <span>Gold</span>
+          <input type="number" name="gold">
+        </label>
+
+        <label style="display:flex; align-items:center; gap:8px; margin-top: 24px;">
+          <input type="checkbox" name="confirmed" value="1" checked>
+          <span>Verified</span>
+        </label>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <label style="display:block;">
+          <span>Notes</span>
+          <textarea name="notes" rows="4" style="width:100%;" placeholder="Notes..."></textarea>
+        </label>
+      </div>
+
+      <div class="form-actions" style="margin-top: 16px;">
+        <button type="submit" class="primary">Create Run</button>
+        <a href="{{ url_for('runs.runs_view') }}">
+          <button type="button" class="secondary">Cancel</button>
+        </a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -693,3 +693,25 @@ th.sortable.active {
   font-family: inherit;
   font-size: 0.95rem;
 }
+
+/* header arrows on run view */
+.run-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.run-title {
+  margin: 0;
+}
+
+.run-nav-btn {
+  font-size: 22px;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.run-nav-btn:hover {
+  background: rgba(255,255,255,0.08);
+}

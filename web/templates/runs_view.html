@@ -2,6 +2,10 @@
 {% block content %}
   <h1>Runs</h1>
 
+  <a href="{{ url_for('runs.run_new') }}">
+    <button type="button" class="primary">Add Run</button>
+  </a>
+
   {% if not runs %}
     <p>No runs yet.</p>
   {% else %}

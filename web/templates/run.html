@@ -1,7 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
   <div class="run-header">
-    <h1>Run {{ run.run_id }}  </h1>
+
+    <div class="run-title-row">
+      {% if prev_run_id %}
+        <a href="{{ url_for('runs.run_detail', run_id=prev_run_id) }}{% if edit_mode %}?edit=1{% endif %}"
+           class="run-nav-btn">
+          ←
+        </a>
+      {% endif %}
+    
+      <h1 class="run-title">Run {{ run.run_id }}</h1>
+    
+      {% if next_run_id %}
+        <a href="{{ url_for('runs.run_detail', run_id=next_run_id) }}{% if edit_mode %}?edit=1{% endif %}"
+           class="run-nav-btn">
+          →
+        </a>
+      {% endif %}
+    </div>
 
       {% if metrics and metrics.won %}
         <span class="badge-win">🏆 Won</span>
@@ -149,6 +166,13 @@
             {{ "Mark as unverified" if run.is_confirmed else "Mark as verified" }}
           </button>
         </form>
+
+
+      <form method="post"
+            action="{{ url_for('runs.run_delete', run_id=run.run_id) }}"
+            onsubmit="return confirm('Delete this run permanently? This cannot be undone.');">
+        <button type="submit" class="danger">Delete run</button>
+      </form>
 
       {% endif %}
     </div>

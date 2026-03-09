@@ -175,3 +175,126 @@ def update_run_metrics(
         _rebuild_after_edit(db)
     finally:
         db.close()
+
+
+def create_manual_run(
+    *,
+    hero: str | None,
+    season_id: Optional[int],
+    wins: Optional[int],
+    max_health: Optional[int],
+    prestige: Optional[int],
+    level: Optional[int],
+    income: Optional[int],
+    gold: Optional[int],
+    notes: str | None,
+    confirmed: bool,
+) -> int:
+    import time
+
+    db = RunHistoryDb(settings.run_history_db_path)
+    try:
+        cur = db.conn.cursor()
+        now = int(time.time())
+
+        hero = (hero or "").strip() or None
+        notes = (notes or "").strip()
+
+        won = None if wins is None else (1 if wins >= 10 else 0)
+
+        cur.execute(
+            """
+            INSERT INTO runs (
+                ended_at_unix,
+                hero,
+                is_confirmed,
+                notes,
+                season_id
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                now,
+                hero,
+                1 if confirmed else 0,
+                notes or None,
+                season_id,
+            ),
+        )
+        run_id = int(cur.lastrowid)
+
+        cur.execute(
+            """
+            INSERT INTO run_metrics (
+                run_id,
+                wins,
+                max_health,
+                prestige,
+                level,
+                income,
+                gold,
+                won,
+                ocr_json,
+                ocr_version,
+                updated_at_unix
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+            """,
+            (
+                run_id,
+                wins,
+                max_health,
+                prestige,
+                level,
+                income,
+                gold,
+                won,
+                now,
+            ),
+        )
+
+        cur.execute(
+            """
+            INSERT INTO run_overrides (
+                run_id,
+                hero_override,
+                notes,
+                is_confirmed,
+                updated_at_unix
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                hero,
+                notes or None,
+                1 if confirmed else 0,
+                now,
+            ),
+        )
+
+        db.conn.commit()
+        _rebuild_after_edit(db)
+        return run_id
+    finally:
+        db.close()
+
+
+def delete_run(run_id: int) -> None:
+    db = RunHistoryDb(settings.run_history_db_path)
+    try:
+        cur = db.conn.cursor()
+
+        # delete dependent rows first
+        cur.execute("DELETE FROM run_item_overrides WHERE run_id = ?", (int(run_id),))
+        cur.execute("DELETE FROM run_items WHERE run_id = ?", (int(run_id),))
+        cur.execute("DELETE FROM run_metrics WHERE run_id = ?", (int(run_id),))
+        cur.execute("DELETE FROM run_overrides WHERE run_id = ?", (int(run_id),))
+
+        # then delete the run itself
+        cur.execute("DELETE FROM runs WHERE run_id = ?", (int(run_id),))
+
+        db.conn.commit()
+        _rebuild_after_edit(db)
+    finally:
+        db.close()

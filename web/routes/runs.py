@@ -12,11 +12,14 @@ from web.services import get_hero_list, get_run_item_progress_table
 from web.services.run_edits import (
     clear_item_override,
     confirm_run,
+    create_manual_run,
+    delete_run,
     set_hero_override,
     set_item_override,
     set_run_notes,
     update_run_metrics,
 )
+
 
 runs_bp = Blueprint("runs", __name__)
 
@@ -75,6 +78,20 @@ def run_detail(run_id: int):
         tconn=get_templates_conn(),
     )
 
+    cur.execute(
+        "SELECT MAX(run_id) AS prev_id FROM runs WHERE run_id < ?",
+        (run_id,),
+    )
+    prev_row = cur.fetchone()
+    prev_run_id = prev_row["prev_id"] if prev_row else None
+
+    cur.execute(
+        "SELECT MIN(run_id) AS next_id FROM runs WHERE run_id > ?",
+        (run_id,),
+    )
+    next_row = cur.fetchone()
+    next_run_id = next_row["next_id"] if next_row else None
+
     return render_template(
         "run.html",
         run=run,
@@ -84,6 +101,8 @@ def run_detail(run_id: int):
         metrics=metrics,
         progress=progress,
         achievements_unlocked=achievements_unlocked,
+        prev_run_id=prev_run_id,
+        next_run_id=next_run_id,
     )
 
 
@@ -115,6 +134,50 @@ def run_metrics_update(run_id: int):
     if return_edit:
         return redirect(url_for("runs.run_detail", run_id=run_id, edit=1))
     return redirect(url_for("runs.run_detail", run_id=run_id))
+
+
+@runs_bp.get("/runs/new")
+def run_new():
+    heroes = get_hero_list(settings.templates_db_path, conn=get_templates_conn())
+    return render_template("run_new.html", heroes=heroes)
+
+
+@runs_bp.post("/runs/new")
+def run_create():
+    try:
+        hero = (request.form.get("hero") or "").strip() or None
+        season_id = _parse_optional_int(request.form.get("season_id"))
+        wins = _parse_optional_int(request.form.get("wins"))
+        max_health = _parse_optional_int(request.form.get("max_health"))
+        prestige = _parse_optional_int(request.form.get("prestige"))
+        level = _parse_optional_int(request.form.get("level"))
+        income = _parse_optional_int(request.form.get("income"))
+        gold = _parse_optional_int(request.form.get("gold"))
+        notes = request.form.get("notes") or ""
+        confirmed = request.form.get("confirmed") == "1"
+    except ValueError as e:
+        return (str(e), 400)
+
+    run_id = create_manual_run(
+        hero=hero,
+        season_id=season_id,
+        wins=wins,
+        max_health=max_health,
+        prestige=prestige,
+        level=level,
+        income=income,
+        gold=gold,
+        notes=notes,
+        confirmed=confirmed,
+    )
+
+    return redirect(url_for("runs.run_detail", run_id=run_id, edit=1))
+
+
+@runs_bp.post("/run/<int:run_id>/delete")
+def run_delete(run_id: int):
+    delete_run(run_id)
+    return redirect(url_for("runs.runs_view"))
 
 
 @runs_bp.get("/screenshot/<int:run_id>")
