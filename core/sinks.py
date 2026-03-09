@@ -6,6 +6,7 @@ import time
 from typing import List, Optional, Set
 
 from .events import Event
+from core.config import settings
 
 
 class Sink:
@@ -95,7 +96,7 @@ class ScreenshotSink(Sink):
             img = Image.frombytes("RGB", shot.size, shot.rgb)
 
             ts = int(time.time())
-            path = os.path.join(self.out_dir, f"{prefix}_{ts}.png")
+            path = settings.screenshot_dir
             img.save(path)
 
             print(json.dumps({"type": "ScreenshotSaved", "path": path}, ensure_ascii=False))

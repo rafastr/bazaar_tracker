@@ -7,6 +7,7 @@ import json
 from typing import Any, Dict, List, Optional
 import sqlite3
 
+from core.config import settings
 from core.templates_db import TemplatesDb
 
 
@@ -46,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--db",
         dest="db_path",
-        default="db/templates.sqlite3",
+        default=settings.templates_db_path
         help="Output sqlite DB path for templates",
     )
 

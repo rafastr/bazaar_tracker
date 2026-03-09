@@ -15,6 +15,9 @@ import certifi
 import requests
 import urllib3
 
+from core.config import settings
+
+
 # Identify ourselves politely; keep requests rate-limited with --sleep
 UA = "BazaarTracker/0.1 (local image cache builder; respectful scraping)"
 
@@ -326,13 +329,14 @@ def clear_image_path(cur: sqlite3.Cursor, conn: sqlite3.Connection, template_id:
 def build_image_paths(out_dir: str, template_id: str) -> tuple[str, str]:
     filename = f"{template_id}.webp"
     disk_path = os.path.join(out_dir, filename)
-    db_path = os.path.join("assets", "images", "items", filename).replace("\\", "/")
+    db_path = disk_path
     return disk_path, db_path
 
 
 def cache_item_images(
     db_path: str,
-    out_dir: str = "assets/images/items",
+    out_dir: str = str(settings.item_images_dir),
+
     sleep: float = 0.7,
     limit: int = 0,
     force: bool = False,
@@ -466,8 +470,8 @@ def main() -> None:
 
     ap = argparse.ArgumentParser(description="Cache BazaarDB item images locally keyed by template_id")
 
-    ap.add_argument("--db", required=True)
-    ap.add_argument("--out-dir", default="assets/images/items")
+    ap.add_argument("--db", default=settings.templates_db_path)
+    ap.add_argument("--out-dir", default=str(settings.item_images_dir))
     ap.add_argument("--sleep", type=float, default=0.7)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--force", action="store_true")

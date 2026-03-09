@@ -57,7 +57,8 @@ def update_item_images(
 ) -> dict:
     return cache_item_images(
         db_path=settings.templates_db_path,
-        out_dir="assets/images/items",
+        out_dir=str(settings.item_images_dir),
+
         sleep=sleep,
         limit=limit,
         force=force,
