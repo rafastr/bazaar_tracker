@@ -96,7 +96,8 @@ class ScreenshotSink(Sink):
             img = Image.frombytes("RGB", shot.size, shot.rgb)
 
             ts = int(time.time())
-            path = settings.screenshot_dir
+            filename = f"{prefix}_{ts}.png"
+            path = os.path.join(self.out_dir, filename)
             img.save(path)
 
             print(json.dumps({"type": "ScreenshotSaved", "path": path}, ensure_ascii=False))

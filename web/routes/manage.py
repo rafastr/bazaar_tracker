@@ -15,6 +15,7 @@ from web.services.manage import (
     update_item_images,
     update_templates,
 )
+from core.config import settings
 
 
 manage_bp = Blueprint("manage", __name__)
@@ -27,6 +28,7 @@ def manage():
         "manage.html",
         result=result,
         default_cards_path=default_cards_path(),
+        data_dir=settings.data_dir,
     )
 
 

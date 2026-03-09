@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--db",
         dest="db_path",
-        default=settings.templates_db_path
+        default=settings.templates_db_path,
         help="Output sqlite DB path for templates",
     )
 

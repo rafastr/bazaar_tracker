@@ -130,8 +130,8 @@ class TemplatesDb:
 
     def set_image_path(self, template_id: str, image_path: str) -> None:
         """
-        Store local cached image path (relative preferred).
-        Example: assets/images/items/<template_id>.webp
+        Store local cached image path.
+        Usually an absolute path under the app data directory.
         """
         cur = self.conn.cursor()
         cur.execute(
