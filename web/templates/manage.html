@@ -36,6 +36,12 @@
         <form method="post" action="{{ url_for('manage.manage_export') }}">
           <button type="submit">Download export JSON</button>
         </form>
+        <form method="post" action="{{ url_for('manage.manage_export_everything') }}">
+            <button type="submit">Export Everything</button>
+            <p class="help-text">
+            Create a full backup zip containing databases, screenshots, item images, and local metadata files.
+            </p>
+        </form>
       </section>
 
       <section class="manage-card">
@@ -48,6 +54,8 @@
           <button type="submit">Import runs JSON</button>
         </form>
       </section>
+
+
 
       <section class="manage-card">
         <h2>Import completion CSV</h2>

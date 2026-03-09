@@ -4,12 +4,13 @@ import os
 import tempfile
 
 from core.config import settings
-from scripts.export_runs import export_runs_to_json
-from scripts.import_runs import import_runs_from_json
-from scripts.import_completion_csv import import_completion_csv_file
-from scripts.import_templates import import_templates_from_cards
 from scripts.cache_item_images import cache_item_images
 from scripts.doctor import run_doctor
+from scripts.export_runs import export_runs_to_json
+from scripts.export_everything import export_everything_to_zip
+from scripts.import_completion_csv import import_completion_csv_file
+from scripts.import_runs import import_runs_from_json
+from scripts.import_templates import import_templates_from_cards
 
 
 def export_runs_temp() -> tuple[str, str, dict]:
@@ -40,6 +41,14 @@ def import_completion_csv_upload(upload_path: str, replace: bool = False) -> dic
         templates_db_path=settings.templates_db_path,
         replace=replace,
     )
+
+
+def export_everything_temp() -> tuple[str, str, dict]:
+    fd, path = tempfile.mkstemp(suffix=".zip", prefix="bazaar_chronicles_backup_")
+    os.close(fd)
+
+    result = export_everything_to_zip(path)
+    return path, os.path.basename(path), result
 
 
 def update_templates(cards_json_path: str) -> dict:

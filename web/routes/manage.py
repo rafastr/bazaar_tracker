@@ -3,19 +3,20 @@ from __future__ import annotations
 import os
 import tempfile
 
-from flask import Blueprint, redirect, render_template, request, send_file, session, url_for
+from flask import after_this_request, Blueprint, redirect, render_template, request, send_file, session, url_for
 from werkzeug.utils import secure_filename
 
 from scripts.import_templates import default_cards_path
+from core.config import settings
 from web.services.manage import (
     doctor_summary,
+    export_everything_temp,
     export_runs_temp,
     import_completion_csv_upload,
     import_runs_upload,
     update_item_images,
     update_templates,
 )
-from core.config import settings
 
 
 manage_bp = Blueprint("manage", __name__)
@@ -93,6 +94,52 @@ def manage_import_json():
             os.remove(tmp_path)
 
     return redirect(url_for("manage.manage"))
+
+
+@manage_bp.post("/manage/export-everything")
+def manage_export_everything():
+    try:
+        path, download_name, result = export_everything_temp()
+
+        @after_this_request
+        def cleanup_temp_file(response):
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
+            return response
+
+        files = result.get("included", {}).get("files", [])
+        dirs = result.get("included", {}).get("dirs", {})
+
+        lines = []
+        if files:
+            lines.append("Files:")
+            lines.extend(f"- {name}" for name in files)
+
+        if dirs:
+            if lines:
+                lines.append("")
+            lines.append("Directories:")
+            for name, count in dirs.items():
+                lines.append(f"- {name}: {count} files")
+
+        session["manage_result"] = {
+            "kind": "success",
+            "title": "Full backup created",
+            "body": "\n".join(lines) or "Backup zip created successfully.",
+        }
+
+        return send_file(path, as_attachment=True, download_name=download_name)
+
+    except Exception as e:
+        session["manage_result"] = {
+            "kind": "error",
+            "title": "Full backup failed",
+            "body": str(e),
+        }
+        return redirect(url_for("manage.manage"))
 
 
 @manage_bp.post("/manage/import-csv")
