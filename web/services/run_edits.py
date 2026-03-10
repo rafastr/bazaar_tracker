@@ -103,6 +103,7 @@ def update_run_metrics(
     run_id: int,
     *,
     season_id: Optional[int],
+    rank: Optional[int],
     wins: Optional[int],
     max_health: Optional[int],
     prestige: Optional[int],
@@ -113,6 +114,7 @@ def update_run_metrics(
     db = RunHistoryDb(settings.run_history_db_path)
     try:
         cur = db.conn.cursor()
+        now = int(time.time())
 
         cur.execute(
             """
@@ -123,12 +125,39 @@ def update_run_metrics(
             (season_id, int(run_id)),
         )
 
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO run_overrides (
+                run_id,
+                hero_override,
+                rank_override,
+                notes,
+                is_confirmed,
+                updated_at_unix
+            )
+            VALUES (?, NULL, NULL, NULL, 0, ?)
+            """,
+            (int(run_id), now),
+        )
+
+        cur.execute(
+            """
+            UPDATE run_overrides
+            SET rank_override = ?,
+                updated_at_unix = ?
+            WHERE run_id = ?
+            """,
+            (
+                rank,
+                now,
+                int(run_id),
+            ),
+        )
+
         if wins is None:
             won = None
         else:
             won = 1 if wins >= 10 else 0
-
-        now = int(time.time())
 
         cur.execute(
             """

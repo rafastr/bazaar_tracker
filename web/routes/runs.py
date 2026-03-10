@@ -116,10 +116,12 @@ def run_detail(run_id: int):
         hero_color=hero_color,
     )
 
+
 @runs_bp.post("/run/<int:run_id>/metrics")
 def run_metrics_update(run_id: int):
     try:
         season_id = _parse_optional_int(request.form.get("season_id"))
+        rank = _parse_optional_int(request.form.get("rank"))
         wins = _parse_optional_int(request.form.get("wins"))
         max_health = _parse_optional_int(request.form.get("max_health"))
         prestige = _parse_optional_int(request.form.get("prestige"))
@@ -135,6 +137,7 @@ def run_metrics_update(run_id: int):
     update_run_metrics(
         run_id,
         season_id=season_id,
+        rank=rank,
         wins=wins,
         max_health=max_health,
         prestige=prestige,

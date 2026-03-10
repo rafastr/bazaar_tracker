@@ -108,8 +108,11 @@
 
             <div class="run-stat-card run-stat-primary">
               <div class="run-stat-label">Rank</div>
-              <div class="run-stat-value">
-                {{ run.rank_effective if run.rank_effective is not none else "No legendary yet" }}
+              <div class="run-stat-edit">
+                <input type="number"
+                       name="rank"
+                       min="1"
+                       value="{{ run.rank_effective if run.rank_effective is not none else '' }}">
               </div>
             </div>
 
@@ -195,10 +198,16 @@
             </div>
           </div>
 
+
+
           <div class="run-stat-card run-stat-primary">
             <div class="run-stat-label">Rank</div>
             <div class="run-stat-value">
-              {{ run.rank_effective if run.rank_effective is not none else "No legendary yet" }}
+              {% if run.rank_effective is not none %}
+              #{{ run.rank_effective }}
+              {% else %}
+              No legendary yet
+              {% endif %}
             </div>
           </div>
         </div>
