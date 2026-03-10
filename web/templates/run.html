@@ -44,7 +44,7 @@
           </button>
         </form>
 
-        <button type="button" class="done-btn" id="done-edit-btn">Done</button>
+        <button type="button" class="done-btn" id="done-edit-btn">Save</button>
       {% endif %}
 
       {% if next_run_id %}
@@ -416,6 +416,41 @@
     <p>No screenshot stored.</p>
   {% endif %}
 
+  {% if edit_mode %}
+    <div class="dash-card run-section-card">
+      <h3 style="margin-top:0;">Screenshot tools</h3>
+  
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+        {% if run.screenshot_path %}
+          <form method="post"
+                action="{{ url_for('runs.run_screenshot_reread', run_id=run.run_id) }}">
+            <button type="submit" class="secondary">Re-read metrics from screenshot</button>
+          </form>
+        {% endif %}
+      </div>
+  
+      <form method="post"
+            action="{{ url_for('runs.run_screenshot_update', run_id=run.run_id) }}"
+            enctype="multipart/form-data">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <input
+            type="file"
+            name="screenshot"
+            accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+            required
+          >
+  
+          <label class="chk">
+            <input type="checkbox" name="reread_metrics" value="1" checked>
+            Read metrics and update
+          </label>
+  
+          <button type="submit">Upload screenshot</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+
   {# ======================================================
      Danger zone
      ====================================================== #}
@@ -428,6 +463,7 @@
       </form>
     </div>
   {% endif %}
+
 
   {# ======================================================
      Edit mode JavaScript

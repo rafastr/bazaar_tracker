@@ -25,10 +25,6 @@ def main() -> None:
     debug_dir = args.debug.strip() or None
     metrics = extract_run_metrics(shot, ROIS, ocr_version=args.version, debug_dir=debug_dir)
 
-
-
-    metrics = extract_run_metrics(shot, ROIS, ocr_version=args.version)
-
     db = RunHistoryDb(settings.run_history_db_path)
     try:
         db.upsert_run_metrics(

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import tempfile
 
-from flask import Blueprint, redirect, render_template, request, send_file, url_for
+from pathlib import Path
+from flask import Blueprint, flash, redirect, render_template, request, send_file, url_for
 
 from core.config import settings
 from core.board_layout import build_board_grid
@@ -14,11 +16,15 @@ from web.services.run_edits import (
     confirm_run,
     create_manual_run,
     delete_run,
+    reread_run_metrics_from_screenshot,
     set_hero_override,
     set_item_override,
     set_run_notes,
+    set_run_screenshot,
     update_run_metrics,
 )
+
+
 
 
 runs_bp = Blueprint("runs", __name__)
@@ -179,7 +185,53 @@ def screenshot(run_id: int):
     if not os.path.exists(path):
         return (f"Screenshot not found: {path}", 404)
 
-    return send_file(path, mimetype="image/png")
+    return send_file(path)
+
+
+@runs_bp.post("/run/<int:run_id>/screenshot")
+def run_screenshot_update(run_id: int):
+    file = request.files.get("screenshot")
+    if not file or not file.filename:
+        flash("No screenshot uploaded.", "error")
+        return redirect(url_for("runs.run_detail", run_id=run_id, edit=1))
+
+    reread = request.form.get("reread_metrics") == "1"
+
+    suffix = Path(file.filename).suffix or ".png"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        file.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        set_run_screenshot(
+            run_id,
+            source_path=tmp_path,
+            reread_metrics=reread,
+        )
+        if reread:
+            flash("Screenshot uploaded and metrics updated.", "success")
+        else:
+            flash("Screenshot uploaded.", "success")
+    except Exception as e:
+        flash(f"Could not read screenshot metrics: {e}", "error")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    return redirect(url_for("runs.run_detail", run_id=run_id, edit=1))
+
+
+@runs_bp.post("/run/<int:run_id>/screenshot/reread")
+def run_screenshot_reread(run_id: int):
+    try:
+        reread_run_metrics_from_screenshot(run_id)
+        flash("Metrics re-read from screenshot.", "success")
+    except Exception as e:
+        flash(f"Could not re-read screenshot metrics: {e}", "error")
+
+    return redirect(url_for("runs.run_detail", run_id=run_id, edit=1))
 
 
 @runs_bp.post("/run/<int:run_id>/confirm")

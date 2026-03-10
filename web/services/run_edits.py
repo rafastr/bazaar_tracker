@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional
+import os
+import shutil
 import time
+from pathlib import Path
+from typing import Optional
 
 from core.config import settings
 from core.run_history_db import RunHistoryDb
+from core.ocr_metrics import extract_run_metrics
+from core.ocr_rois import ROIS
 
 
 def _rebuild_after_edit(db: RunHistoryDb) -> None:
@@ -171,6 +176,98 @@ def update_run_metrics(
             ),
         )
 
+        db.conn.commit()
+        _rebuild_after_edit(db)
+    finally:
+        db.close()
+
+
+def _copy_run_screenshot(run_id: int, source_path: str) -> str:
+    src = Path(source_path).expanduser().resolve()
+    if not src.exists():
+        raise FileNotFoundError(f"Screenshot not found: {src}")
+
+    screenshots_dir = Path(settings.screenshot_dir)
+    screenshots_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = src.suffix.lower() or ".png"
+    now = int(time.time())
+    dst = screenshots_dir / f"run_{int(run_id)}_{now}{ext}"
+
+    shutil.copy2(src, dst)
+    return str(dst)
+
+
+def set_run_screenshot(
+    run_id: int,
+    *,
+    source_path: str,
+    reread_metrics: bool = False,
+) -> str:
+    db = RunHistoryDb(settings.run_history_db_path)
+    try:
+        copied_path = _copy_run_screenshot(int(run_id), source_path)
+
+        cur = db.conn.cursor()
+        cur.execute(
+            """
+            UPDATE runs
+            SET screenshot_path = ?
+            WHERE run_id = ?
+            """,
+            (copied_path, int(run_id)),
+        )
+
+        if reread_metrics:
+            metrics = extract_run_metrics(copied_path, ROIS, ocr_version="v1")
+            db.upsert_run_metrics(
+                int(run_id),
+                wins=metrics.get("wins"),
+                max_health=metrics.get("max_health"),
+                prestige=metrics.get("prestige"),
+                level=metrics.get("level"),
+                income=metrics.get("income"),
+                gold=metrics.get("gold"),
+                won=metrics.get("won"),
+                ocr_json=metrics.get("ocr_json"),
+                ocr_version=metrics.get("ocr_version"),
+            )
+            db.conn.commit()
+            _rebuild_after_edit(db)
+        else:
+            db.conn.commit()
+
+        return copied_path
+    finally:
+        db.close()
+
+
+def reread_run_metrics_from_screenshot(run_id: int) -> None:
+    db = RunHistoryDb(settings.run_history_db_path)
+    try:
+        cur = db.conn.cursor()
+        cur.execute(
+            "SELECT screenshot_path FROM runs WHERE run_id = ?",
+            (int(run_id),),
+        )
+        row = cur.fetchone()
+        shot = row["screenshot_path"] if row else None
+        if not shot:
+            raise ValueError("Run has no screenshot")
+
+        metrics = extract_run_metrics(shot, ROIS, ocr_version="v1")
+        db.upsert_run_metrics(
+            int(run_id),
+            wins=metrics.get("wins"),
+            max_health=metrics.get("max_health"),
+            prestige=metrics.get("prestige"),
+            level=metrics.get("level"),
+            income=metrics.get("income"),
+            gold=metrics.get("gold"),
+            won=metrics.get("won"),
+            ocr_json=metrics.get("ocr_json"),
+            ocr_version=metrics.get("ocr_version"),
+        )
         db.conn.commit()
         _rebuild_after_edit(db)
     finally:
