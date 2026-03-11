@@ -825,8 +825,21 @@ class RunHistoryDb:
             ("tank", "Tank", "Win a run with 25,000+ Max HP."),
             ("respect", "Respect", "Win a run with 25+ Prestige."),
             ("overleveled", "Overleveled", "Win a run with 20+ level."),
-            ("landlord", "Landlord", "Win a run with 25+ income."),
+            ("dividends", "Dividends", "Win a run with 25+ income."),
             ("rich_richer", "Rich Get Richer", "Win a run with 500+ gold in the bank."),
+
+            ("rio_amazonas", "Rio amazonas", "Win with 4+ Piranha on board."),
+            ("hive", "Hive", "Win with 4+ Busy Bee on board."),
+            ("relic_win", "Archeologist", "Win a run using only Relic items."),
+            ("tool_win", "MacGyver", "Win a run using only Tool items."),
+            ("landlord", "Landlord", "Win a run using only Property items."),
+            ("apparel_win", "Dressed to Kill", "Win a run using only Apparel items."),
+            ("friend_win", "Thanks My Friend", "Win a run using only Friend items."),
+            ("vehicle_win", "On the Move", "Win a run using only Vehicle items."),
+            ("potion_win", "The Witch", "Win a run using only Potion items."),
+            ("food_win", "Gluttony", "Win a run using only Food items."),
+            ("perfect_streak", "Unkillable", "Reach a streak of 4 perfect runs."),
+            ("letter_s_win", "Reader", "Win a run using only items that start with the letter S."),
 
         ]
 
@@ -889,7 +902,7 @@ class RunHistoryDb:
             tcur = tconn.cursor()
             tcur.execute(
                 """
-                SELECT template_id, heroes_json
+                SELECT template_id, name, heroes_json, tags_json
                 FROM templates
                 WHERE template_id IS NOT NULL
                   AND COALESCE(ignored, 0) = 0
@@ -921,15 +934,47 @@ class RunHistoryDb:
                         out.add(name)
             return out
 
+        def parse_tag_set(tags_json: str) -> set[str]:
+            s = (tags_json or "").strip()
+            if not s:
+                return set()
+            try:
+                data = json.loads(s)
+            except Exception:
+                return set()
+        
+            if isinstance(data, list):
+                vals = data
+            elif isinstance(data, dict):
+                vals = data.get("tags", [])
+            else:
+                vals = [data]
+        
+            out: set[str] = set()
+            for v in vals:
+                if isinstance(v, str):
+                    name = v.strip()
+                    if name:
+                        out.add(name.lower())
+            return out
+
+        name_by_tid: dict[str, str] = {}
+        tags_by_tid: dict[str, set[str]] = {}
+
         origin_by_tid: dict[str, set[str]] = {}
         is_common_tid: dict[str, bool] = {}
+
         for r in template_rows:
             tid = (r["template_id"] or "").strip()
             if not tid:
                 continue
+        
             origins = parse_origin_set(r["heroes_json"] or "")
             origin_by_tid[tid] = origins
             is_common_tid[tid] = any(h.lower() == "common" for h in origins) or (not origins)
+        
+            name_by_tid[tid] = (r["name"] or "").strip()
+            tags_by_tid[tid] = parse_tag_set(r["tags_json"] or "")
 
         # All heroes known from templates (excluding Common)
         all_heroes: set[str] = set()
@@ -985,6 +1030,10 @@ class RunHistoryDb:
         cur_win_streak = 0
         best_win_streak = 0
 
+        cur_perfect_streak = 0
+        best_perfect_streak = 0
+        unlocked_perfect_streak = False
+
         # consecutive unique-hero win chain
         unique_chain: list[str] = []  # list of heroes in current chain
         best_unique_chain = 0
@@ -998,6 +1047,19 @@ class RunHistoryDb:
             run_id = int(rr["run_id"])
             hero_eff = (rr["hero_override"] or rr["hero_base"] or "").strip() or "(unknown)"
             won = int(rr["won"] or 0) == 1
+            wins_count = rr["wins"]
+            max_health = rr["max_health"]
+            level = rr["level"]
+            income = rr["income"]
+            gold = rr["gold"]
+
+            prestige = rr["prestige"]
+            
+            is_perfect = (
+                won
+                and isinstance(wins_count, int) and wins_count >= 10
+                and isinstance(prestige, int) and prestige >= 25
+            )
 
             # streak accounting
             if won:
@@ -1005,6 +1067,13 @@ class RunHistoryDb:
                 best_win_streak = max(best_win_streak, cur_win_streak)
             else:
                 cur_win_streak = 0
+
+            # perfect streak
+            if is_perfect:
+                cur_perfect_streak += 1
+                best_perfect_streak = max(best_perfect_streak, cur_perfect_streak)
+            else:
+                cur_perfect_streak = 0
 
             # unique chain accounting (wins only)
             if won:
@@ -1030,6 +1099,10 @@ class RunHistoryDb:
                 unlock("win_streak_15", run_id, {"best_win_streak": cur_win_streak})
                 unlocked_win_streak_15 = True
 
+            if not unlocked_perfect_streak and cur_perfect_streak >= 4:
+                unlock("perfect_streak", run_id, {"perfect_streak": cur_perfect_streak})
+                unlocked_perfect_streak = True
+
             if (
                 not unlocked_hero_champion
                 and all_heroes
@@ -1050,12 +1123,6 @@ class RunHistoryDb:
                 )
                 unlocked_master_merchant = True
 
-            max_health = rr["max_health"]
-
-            prestige = rr["prestige"]
-            level = rr["level"]
-            income = rr["income"]
-            gold = rr["gold"]
             
             # Metric-threshold achievements (wins only)
             if isinstance(max_health, int) and max_health >= 25_000:
@@ -1068,7 +1135,7 @@ class RunHistoryDb:
                 unlock("overleveled", run_id, {"level": level})
             
             if isinstance(income, int) and income >= 25:
-                unlock("landlord", run_id, {"income": income})
+                unlock("dividends", run_id, {"income": income})
             
             if isinstance(gold, int) and gold >= 500:
                 unlock("rich_richer", run_id, {"gold": gold})
@@ -1080,6 +1147,9 @@ class RunHistoryDb:
             tids = [it["template_id"] for it in non_empty]
 
             # ---- per-run achievements ----
+            names = [name_by_tid.get(tid, "") for tid in tids]
+            tag_sets = [tags_by_tid.get(tid, set()) for tid in tids]
+
             if len(non_empty) == 1:
                 unlock("solo_carry", run_id)
 
@@ -1108,6 +1178,61 @@ class RunHistoryDb:
                         break
                 if ok:
                     unlock("disguised_hero", run_id)
+
+                # win with 4+ piranha
+                piranha_count = sum(1 for tid in tids if name_by_tid.get(tid, "").strip().lower() == "piranha")
+                if piranha_count >= 4:
+                    unlock("rio_amazonas", run_id, {"piranha_count": piranha_count})
+                
+                # win with 4+ busy bee
+                busy_bee_count = sum(1 for tid in tids if name_by_tid.get(tid, "").strip().lower() == "busy bee")
+                if busy_bee_count >= 4:
+                    unlock("hive", run_id, {"busy_bee_count": busy_bee_count})
+
+                # win only with relics
+                all_relic = all("relic" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_relic:
+                    unlock("relic_win", run_id)
+                
+                # win only with tools
+                all_tool = all("tool" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_tool:
+                    unlock("tool_win", run_id)
+                
+                # win only with property
+                all_tool = all("property" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_tool:
+                    unlock("landlord", run_id)
+
+                # win only with apparel
+                all_apparel = all("apparel" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_apparel:
+                    unlock("apparel_win", run_id)
+
+                # win only with friends
+                all_apparel = all("friend" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_apparel:
+                    unlock("friend_win", run_id)
+
+                # win only with vehicle
+                all_apparel = all("vehicle" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_apparel:
+                    unlock("vehicle_win", run_id)
+
+                # win only with potion
+                all_apparel = all("potion" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_apparel:
+                    unlock("potion_win", run_id)
+
+                # win only with food
+                all_apparel = all("food" in tags_by_tid.get(tid, set()) for tid in tids)
+                if all_apparel:
+                    unlock("food_win", run_id)
+
+                # win only with items that start with S(the most common item letter)
+                all_s = all((name_by_tid.get(tid, "").strip().lower().startswith("s")) for tid in tids)
+                if all_s:
+                    unlock("letter_s_win", run_id)
 
         # ---- end-of-scan achievements ----
 

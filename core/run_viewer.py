@@ -130,9 +130,14 @@ def get_run_board(
         is_confirmed = ov["is_confirmed"] if ov else 0
 
         resolved_items = get_effective_board_items_with_meta(rh, td, run_id)
-
         socket_state = get_effective_socket_state(rh, run_id)
-        editor_blocks = build_editor_board_blocks(socket_state)
+        
+        meta_by_socket = {
+            int(it["socket_number"]): it
+            for it in resolved_items
+        }
+        
+        editor_blocks = build_editor_board_blocks(socket_state, meta_by_socket)
 
         return {
             "run_id": run_row["run_id"],
@@ -264,3 +269,6 @@ def count_runs(run_history_db_path: str) -> int:
         return int(row["n"]) if row else 0
     finally:
         conn.close()
+
+
+

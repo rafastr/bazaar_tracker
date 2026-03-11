@@ -217,13 +217,17 @@ def get_effective_socket_state(
     return out
 
 
-def build_editor_board_blocks(socket_state: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+def build_editor_board_blocks(
+    socket_state: dict[int, dict[str, Any]],
+    meta_by_socket: dict[int, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """
-    Build 10 editor board blocks, allowing empty medium/large placeholders
-    to occupy multiple cells and hide covered sockets.
+    Build board blocks for view/edit mode, including empty medium/large placeholders.
+    If meta_by_socket is provided, item blocks also carry name/art_key metadata.
     """
     blocks: list[dict[str, Any]] = []
     covered: set[int] = set()
+    meta_by_socket = meta_by_socket or {}
 
     for sock in range(10):
         if sock in covered:
@@ -239,14 +243,17 @@ def build_editor_board_blocks(socket_state: dict[int, dict[str, Any]]) -> list[d
         elif size == "large":
             span = 3
 
+        meta = meta_by_socket.get(sock, {})
+
         blocks.append(
             {
                 "socket_number": sock,
                 "template_id": tid,
                 "size": size,
                 "span": span,
+                "name": meta.get("name") or ("(empty)" if not tid else ""),
+                "art_key": meta.get("art_key"),
                 "is_empty": not bool(tid),
-                "name": "(empty)" if not tid else None,
             }
         )
 
