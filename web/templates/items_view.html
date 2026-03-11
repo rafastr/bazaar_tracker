@@ -2,121 +2,175 @@
 {% block content %}
   <h1>Item view</h1>
 
-  <div class="filters">
-    <div class="filters-row">
-      <b>Hero filter</b>
-      {% set groups = items | map(attribute="group") | unique | list %}
-      {% for g in groups %}
-        {% set c = hero_colors.get(g) %}
-        <label class="chk" style="{{ 'color:' ~ c ~ ';' if c else '' }}">
-          <input type="checkbox" class="f-hero" value="{{ g }}" checked>
-          {{ g }}
-        </label>
-      {% endfor %}
 
+    <div class="dash-card item-filters-card">
+      <div class="filters">
+        <div class="filters-row">
+          <b class="filters-label">Hero filter</b>
+          {% set groups = items | map(attribute="group") | unique | list %}
+          {% for g in groups %}
+            {% set c = hero_colors.get(g) %}
+            <label class="chk hero-chip" style="{{ 'color:' ~ c ~ ';' if c else '' }}">
+              <input type="checkbox" class="f-hero" value="{{ g }}" checked>
+              {{ g }}
+            </label>
+          {% endfor %}
+        </div>
+    
+        <div class="filters-row">
+          <b class="filters-label">Size filter</b>
+          <label class="chk filter-chip"><input type="checkbox" class="f-size" value="small" checked> Small</label>
+          <label class="chk filter-chip"><input type="checkbox" class="f-size" value="medium" checked> Medium</label>
+          <label class="chk filter-chip"><input type="checkbox" class="f-size" value="large" checked> Large</label>
+        </div>
+      </div>
     </div>
-
-    <div class="filters-row">
-      <b>Size Filter</b>
-      <label class="chk"><input type="checkbox" class="f-size" value="small" checked> Small</label>
-      <label class="chk"><input type="checkbox" class="f-size" value="medium" checked> Medium</label>
-      <label class="chk"><input type="checkbox" class="f-size" value="large" checked> Large</label>
+    
+  <div class="dash-card item-overall-card">
+    <h2 style="margin-top: 0;">Item completion</h2>
+  
+    <div class="dash-bars">
+      <div class="dash-bar">
+        <div class="dash-bar-label big">
+          Win completion: <span id="stat-win-done">0</span> / <span id="stat-total">0</span>
+          (<b><span id="stat-win-pct">0.0</span>%</b>)
+        </div>
+        <div class="progress">
+          <div class="progress-fill" id="stat-win-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+  
+      <div class="dash-bar">
+        <div class="dash-bar-label big">
+          Other-hero completion: <span id="stat-other-done">0</span> / <span id="stat-total2">0</span>
+          (<b><span id="stat-other-pct">0.0</span>%</b>)
+        </div>
+        <div class="progress">
+          <div class="progress-fill" id="stat-other-fill" style="width: 0%;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <p class="hint" id="overall-stats">
-    Win: <span id="stat-win-done">0</span> / <span id="stat-total">0</span>
-    (<span id="stat-win-pct">0.0</span>%) ·
-    Other-hero: <span id="stat-other-done">0</span> / <span id="stat-total2">0</span>
-    (<span id="stat-other-pct">0.0</span>%)
-  </p>
-
-  {% set ns = namespace(cur=None, group_total=0, group_win=0, group_other=0) %}
-
-  {% for it in items %}
-
-    {% if ns.cur != it.group %}
-      {% if ns.cur is not none %}
-        </tbody></table>
-      {% endif %}
-
-      {% set ns.cur = it.group %}
-
-      {% set ns.group_total = 0 %}
-      {% set ns.group_win = 0 %}
-      {% set ns.group_other = 0 %}
-
-      {% for x in items %}
-        {% if x.group == ns.cur %}
-          {% set ns.group_total = ns.group_total + 1 %}
-          {% if x.won_this %}{% set ns.group_win = ns.group_win + 1 %}{% endif %}
-          {% if x.won_other %}{% set ns.group_other = ns.group_other + 1 %}{% endif %}
-        {% endif %}
-      {% endfor %}
-
-      {% set gpct_win = (ns.group_win * 100 / ns.group_total) if ns.group_total else 0 %}
-      {% set gpct_other = (ns.group_other * 100 / ns.group_total) if ns.group_total else 0 %}
-
-      {% set gc = hero_colors.get(ns.cur) %}
-      <h2 style="margin-top: 18px; {{ 'color:' ~ gc ~ ';' if gc else '' }}"
-          data-group="{{ ns.cur }}">
-        {{ ns.cur }}
-        <span style="font-weight: 400; opacity: 0.85;">
-          · Win <span class="g-win-done">{{ ns.group_win }}</span> /
-          <span class="g-total">{{ ns.group_total }}</span>
-          (<span class="g-win-pct">{{ gpct_win|round(1) }}</span>%) ·
-          Other <span class="g-other-done">{{ ns.group_other }}</span> /
-          <span class="g-total2">{{ ns.group_total }}</span>
-          (<span class="g-other-pct">{{ gpct_other|round(1) }}</span>%)
-        </span>
-      </h2>
-      {% set gc = hero_colors.get(ns.cur) %}
-      <table class="table section-table"
-             data-group="{{ ns.cur }}"
-             style="{{ 'border-top: 3px solid ' ~ gc ~ '; background: color-mix(in srgb, ' ~ gc ~ ' 10%, transparent);' if gc else '' }}">
-          <thead>
-            <tr>
-              <th style="width: 52px;"></th>
-              <th>Item</th>
-              <th style="width: 80px; text-align:center;">Win</th>
-              <th style="width: 140px; text-align:center;">Win other hero</th>
-            </tr>
-          </thead>
-          <tbody>
-          {% endif %}
-
-    <tr class="{{ 'done' if it.won_this else '' }}"
-        data-hero="{{ it.group }}"
-        data-size="{{ it.size or '' }}">
-    
-      <td class="item-thumb">
-        {% if it.template_id %}
-          <div class="thumb-wrap">
-            <img
-              src="{{ url_for('api.item_image', template_id=it.template_id) }}"
-              alt=""
-              class="thumb"
-              loading="lazy"
-            />
-            <img
-              src="{{ url_for('api.item_image', template_id=it.template_id) }}"
-              class="thumb-preview"
-            />
+  <div class="item-groups-grid">
+    {% set ns = namespace(cur=None, group_total=0, group_win=0, group_other=0) %}
+  
+    {% for it in items %}
+  
+      {% if ns.cur != it.group %}
+        {% if ns.cur is not none %}
+              </tbody>
+            </table>
           </div>
+        </div>
         {% endif %}
-      </td>
-    
-      <td>{{ it.name }}</td>
-      <td class="mark-win">{{ "✔" if it.won_this else "" }}</td>
-      <td class="mark-other">{{ "✔" if it.won_other else "" }}</td>
-    
-    </tr>
+  
+        {% set ns.cur = it.group %}
+  
+        {% set ns.group_total = 0 %}
+        {% set ns.group_win = 0 %}
+        {% set ns.group_other = 0 %}
+  
+        {% for x in items %}
+          {% if x.group == ns.cur %}
+            {% set ns.group_total = ns.group_total + 1 %}
+            {% if x.won_this %}{% set ns.group_win = ns.group_win + 1 %}{% endif %}
+            {% if x.won_other %}{% set ns.group_other = ns.group_other + 1 %}{% endif %}
+          {% endif %}
+        {% endfor %}
+  
+          {% set gc = hero_colors.get(ns.cur) %}
+          {% set group_win_pct = (ns.group_win * 100 / ns.group_total)|round(1) if ns.group_total else 0 %}
+          {% set group_other_pct = (ns.group_other * 100 / ns.group_total)|round(1) if ns.group_total else 0 %}
+          
+              <div class="dash-card item-group-card" data-group-card="{{ ns.cur }}">
+                <button type="button"
+                        class="item-group-toggle"
+                        data-group="{{ ns.cur }}"
+                        aria-expanded="true">
+                  <div class="items-group-title"
+                       style="{{ 'color:' ~ gc ~ ';' if gc else '' }}">
+                    <div class="items-group-name">
+                      {{ ns.cur }}
+                    </div>
+                    <div class="item-group-chevron">▾</div>
+                  </div>
+                </button>
+              
+                <div class="items-group-bars">
+                  <div class="dash-bar">
+                    <div class="dash-bar-label">
+                      Win {{ ns.group_win }} / {{ ns.group_total }} ({{ group_win_pct }}%)
+                    </div>
+                    <div class="progress tiny">
+                      <div class="progress-fill" style="width: {{ group_win_pct }}%"></div>
+                    </div>
+                  </div>
+              
+                  <div class="dash-bar">
+                    <div class="dash-bar-label">
+                      Other {{ ns.group_other }} / {{ ns.group_total }} ({{ group_other_pct }}%)
+                    </div>
+                    <div class="progress tiny">
+                      <div class="progress-fill" style="width: {{ group_other_pct }}%"></div>
+                    </div>
+                  </div>
+                </div>
+              
+                <div class="item-group-body" data-group-body="{{ ns.cur }}">
+                  <table class="table section-table"
+                         data-group="{{ ns.cur }}"
+                         style="{{ 'border-top: 3px solid ' ~ gc ~ '; background: color-mix(in srgb, ' ~ gc ~ ' 10%, transparent);' if gc else '' }}">
+                <thead>
+                  <tr>
+                    <th style="width: 52px;"></th>
+                    <th>Item</th>
+                    <th style="width: 80px; text-align:center;">Win</th>
+                    <th style="width: 140px; text-align:center;">Win other hero</th>
+                  </tr>
+                </thead>
+                <tbody>
+            {% endif %}
+  
+      <tr class="{{ 'done' if it.won_this else '' }}"
+          data-hero="{{ it.group }}"
+          data-size="{{ it.size or '' }}">
+      
+        <td class="item-thumb">
+          {% if it.template_id %}
+            <div class="thumb-wrap">
+              <img
+                src="{{ url_for('api.item_image', template_id=it.template_id) }}"
+                alt=""
+                class="thumb"
+                loading="lazy"
+              />
+              <img
+                src="{{ url_for('api.item_image', template_id=it.template_id) }}"
+                class="thumb-preview"
+              />
+            </div>
+          {% endif %}
+        </td>
+      
+        <td>{{ it.name }}</td>
+        <td class="mark-win">{{ "✔" if it.won_this else "" }}</td>
+        <td class="mark-other">{{ "✔" if it.won_other else "" }}</td>
+      
+      </tr>
+  
+    {% endfor %}
+  
+    {% if ns.cur is not none %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  
+  </div>
 
-  {% endfor %}
 
-  {% if ns.cur is not none %}
-    </tbody></table>
-  {% endif %}
 
   <script>
     function applyFilters() {
@@ -142,11 +196,10 @@
         tbl.style.display = anyVisible ? "" : "none";
       });
 
-      document.querySelectorAll("h2[data-group]").forEach(h2 => {
-        const next = h2.nextElementSibling;
-        if (next && next.tagName === "TABLE") {
-          h2.style.display = (next.style.display === "none") ? "none" : "";
-        }
+      document.querySelectorAll(".item-group-card").forEach(card => {
+        const tbl = card.querySelector("table.table[data-group]");
+        if (!tbl) return;
+        card.style.display = (tbl.style.display === "none") ? "none" : "";
       });
 
       const visibleRows = Array.from(document.querySelectorAll("tr[data-hero]"))
@@ -166,32 +219,27 @@
       document.getElementById("stat-win-pct").textContent = winPct.toFixed(1);
       document.getElementById("stat-other-pct").textContent = otherPct.toFixed(1);
 
-      document.querySelectorAll("table.table[data-group]").forEach(tbl => {
-        const group = tbl.dataset.group || "";
-        const rows = Array.from(tbl.querySelectorAll("tbody tr"))
-          .filter(tr => tr.style.display !== "none");
-
-        const gTotal = rows.length;
-        const gWin = rows.filter(tr => (tr.querySelector(".mark-win")?.textContent || "").trim() !== "").length;
-        const gOther = rows.filter(tr => (tr.querySelector(".mark-other")?.textContent || "").trim() !== "").length;
-
-        const gWinPct = gTotal ? (gWin * 100 / gTotal) : 0;
-        const gOtherPct = gTotal ? (gOther * 100 / gTotal) : 0;
-
-        const h2 = document.querySelector(`h2[data-group="${CSS.escape(group)}"]`);
-        if (!h2) return;
-
-        h2.querySelector(".g-total").textContent = gTotal;
-        h2.querySelector(".g-total2").textContent = gTotal;
-        h2.querySelector(".g-win-done").textContent = gWin;
-        h2.querySelector(".g-other-done").textContent = gOther;
-        h2.querySelector(".g-win-pct").textContent = gWinPct.toFixed(1);
-        h2.querySelector(".g-other-pct").textContent = gOtherPct.toFixed(1);
-      });
+      const winFill = document.getElementById("stat-win-fill");
+      const otherFill = document.getElementById("stat-other-fill");
+      
+      if (winFill) winFill.style.width = `${winPct}%`;
+      if (otherFill) otherFill.style.width = `${otherPct}%`;
     }
 
     document.querySelectorAll(".f-hero, .f-size").forEach(cb => {
       cb.addEventListener("change", applyFilters);
+    });
+
+    document.querySelectorAll(".item-group-toggle").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const group = btn.dataset.group;
+        const body = document.querySelector(`[data-group-body="${CSS.escape(group)}"]`);
+        if (!body) return;
+  
+        const expanded = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+        body.hidden = expanded;
+      });
     });
 
     applyFilters();

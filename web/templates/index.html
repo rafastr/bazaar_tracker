@@ -149,7 +149,7 @@
   
       <div class="dash-bar">
         <div class="dash-bar-label big">
-          Win completion: {{ overall.win }} / {{ overall.total }} ({{ overall.win_pct|round(1) }}%)
+          Win completion: {{ overall.win }} / {{ overall.total }} (<b>{{ overall.win_pct|round(1) }}%</b>)
         </div>
         <div class="progress">
           <div class="progress-fill" style="width: {{ overall.win_pct }}%"></div>
@@ -158,7 +158,7 @@
   
       <div class="dash-bar">
         <div class="dash-bar-label big">
-          Other-hero completion: {{ overall.other }} / {{ overall.total }} ({{ overall.other_pct|round(1) }}%)
+          Other-hero completion: {{ overall.other }} / {{ overall.total }} (<b>{{ overall.other_pct|round(1) }}%</b>)
         </div>
         <div class="progress">
           <div class="progress-fill" style="width: {{ overall.other_pct }}%"></div>

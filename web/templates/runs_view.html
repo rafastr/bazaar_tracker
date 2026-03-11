@@ -1,64 +1,68 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1>Runs</h1>
-
-  <form method="post" action="{{ url_for('runs.run_create_empty') }}" style="display:inline;">
-    <button type="submit" class="primary">Add Run</button>
-  </form>
+  <div class="page-header">
+    <h1>Runs</h1>
+  
+    <a href="{{ url_for('runs.run_create_empty') }}" class="btn-primary">
+      + Add run
+    </a>
+  </div>
 
   {% if not runs %}
     <p>No runs yet.</p>
   {% else %}
 
-    <div class="filters" style="margin-bottom: 12px;">
-      <div class="filters-row">
-        <b>Hero filter</b>
-        {# build hero list from runs #}
-        {% set hero_list = runs | map(attribute="hero_effective") | map("default", "") | unique | list %}
-        {% for h in hero_list %}
-          {% set name = (h or "(unknown)") %}
-          {% set c = hero_colors.get(name) %}
-          <label class="chk" style="{{ 'color:' ~ c ~ ';' if c else '' }}">
-            <input type="checkbox" class="f-hero" value="{{ name }}" checked>
-            {{ name }}
+    <div class="dash-card runs-filters-card">
+      <div class="filters">
+        <div class="filters-row">
+          <b class="filters-label">Hero filter</b>
+    
+          {% set hero_list = runs | map(attribute="hero_effective") | map("default", "") | unique | list %}
+          {% for h in hero_list %}
+            {% set name = (h or "(unknown)") %}
+            {% set c = hero_colors.get(name) %}
+            <label class="chk hero-chip" style="{{ 'color:' ~ c ~ ';' if c else '' }}">
+              <input type="checkbox" class="f-hero" value="{{ name }}" checked>
+              {{ name }}
+            </label>
+          {% endfor %}
+        </div>
+    
+        <div class="filters-row">
+          <b class="filters-label">Result</b>
+          <label class="chk filter-chip"><input type="checkbox" class="f-res" value="W" checked> Win</label>
+          <label class="chk filter-chip"><input type="checkbox" class="f-res" value="L" checked> Loss</label>
+          <label class="chk filter-chip"><input type="checkbox" class="f-res" value="?" checked> Unknown</label>
+        </div>
+    
+        <div class="filters-row">
+          <b class="filters-label">Season</b>
+    
+          {% set ns = namespace(seasons=[]) %}
+          {% for r in runs %}
+            {% if r.season_id is not none and r.season_id not in ns.seasons %}
+              {% set ns.seasons = ns.seasons + [r.season_id] %}
+            {% endif %}
+          {% endfor %}
+    
+          {% for s in ns.seasons | sort(reverse=true) %}
+            <label class="chk filter-chip">
+              <input type="checkbox" class="f-season" value="{{ s }}" checked>
+              {{ s }}
+            </label>
+          {% endfor %}
+    
+          <label class="chk filter-chip">
+            <input type="checkbox" class="f-season" value="__NONE__" checked>
+            Unknown
           </label>
-        {% endfor %}
+        </div>
+    
       </div>
-
-      <div class="filters-row">
-        <b>Result</b>
-        <label class="chk"><input type="checkbox" class="f-res" value="W" checked> Win</label>
-        <label class="chk"><input type="checkbox" class="f-res" value="L" checked> Loss</label>
-        <label class="chk"><input type="checkbox" class="f-res" value="?" checked> Unknown</label>
-      </div>
-
-      <div class="filters-row">
-        <b>Season</b>
-      
-        {% set ns = namespace(seasons=[]) %}
-        {% for r in runs %}
-          {% if r.season_id is not none and r.season_id not in ns.seasons %}
-            {% set ns.seasons = ns.seasons + [r.season_id] %}
-          {% endif %}
-        {% endfor %}
-      
-        {% for s in ns.seasons | sort(reverse=true) %}
-          <label class="chk">
-            <input type="checkbox" class="f-season" value="{{ s }}" checked>
-            {{ s }}
-          </label>
-        {% endfor %}
-      
-        <label class="chk">
-          <input type="checkbox" class="f-season" value="__NONE__" checked>
-          Unknown
-        </label>
-      </div>
-
-      <p class="hint" style="margin: 8px 0 0 0;">
-        Showing <span id="runs-visible">0</span> / <span id="runs-total">{{ runs|length }}</span>
-      </p>
     </div>
+    <p class="hint runs-filters-hint">
+    Showing <span id="runs-visible">0</span> / <span id="runs-total">{{ runs|length }}</span>
+    </p>
 
     <table class="table" id="runs-table">
       <thead>
@@ -77,7 +81,6 @@
         {% for r in runs %}
           {% set h = (r.hero_effective or "(unknown)") %}
           {% set c = hero_colors.get(h) %}
-          {% set res = "W" if r.won else ("L" if r.wins is not none else "?") %}
           {% set res = "W" if r.wins is not none and r.wins >= 10 else ("L" if r.wins is not none else "?") %}
 
           <tr class="run-row"
@@ -117,10 +120,6 @@
         {% endfor %}
       </tbody>
     </table>
-
-    <p class="hint">
-      Tip: click “Latest” in the top bar.
-    </p>
 
     <script>
       function applyRunFilters() {

@@ -68,10 +68,27 @@
 
     <div class="hero-stat hero-stat-wide">
       <div class="k">Streaks</div>
-      <div class="v">
-        Current:
-        {% if streaks.current_type %}{{ streaks.current_type }}{{ streaks.current_len }}{% else %}-{% endif %}
-        · Best W: {{ streaks.best_win }}
+    
+      <div class="hero-streaks">
+        <div class="hero-streak-block">
+          <div class="hero-streak-label">Current</div>
+            <div class="hero-streak-value">
+              {% if streaks.current_type %}
+                <span class="{{ 'r-w' if streaks.current_type == 'W' else 'r-low' }}">
+                  {{ streaks.current_len }}
+                </span>
+              {% else %}
+                -
+              {% endif %}
+            </div>
+        </div>
+    
+        <div class="hero-streak-block">
+          <div class="hero-streak-label">Best</div>
+          <div class="hero-streak-value">
+            <span class="r-w">{{ streaks.best_win }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -97,7 +114,9 @@
             <td>{{ r.run_id }}{% if r.is_confirmed %} ✔{% endif %}</td>
             <td>{% if r.ended_at_unix %}{{ r.ended_at_unix | datetime_ymd }}{% endif %}</td>
             <td>{{ r.rank_effective if r.rank_effective is not none else "" }}</td>
-            <td>{{ r.wins if r.wins is not none else "" }}</td>
+            <td class="{% if r.wins is not none and r.wins >= 10 %}wins-perfect{% endif %}">
+              {{ r.wins if r.wins is not none else "" }}
+            </td>
           </tr>
         {% endfor %}
       </tbody>

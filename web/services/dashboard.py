@@ -330,6 +330,8 @@ def build_index_context(
             if x["run_id"] in run_ids_for_season
         ]
     
+    rank_series_data = rank_series_data[-150:]
+    
     current_rank = rank_series_data[-1]["rank"] if rank_series_data else None
 
     perfect_runs_hero = perfect_runs_by_hero(cur)  # optional to display later
