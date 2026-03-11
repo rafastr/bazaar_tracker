@@ -448,24 +448,21 @@ def _size_to_span(size: str | None) -> int:
 
 
 def _blank_socket_override(cur, run_id: int, socket: int) -> None:
-    cur.execute(
-        """
-        INSERT OR IGNORE INTO run_item_overrides (
-            run_id, socket_number, template_id_override, size_override, note
-        )
-        VALUES (?, ?, '', NULL, NULL)
-        """,
-        (int(run_id), int(socket)),
-    )
+    now = int(time.time())
 
     cur.execute(
         """
-        UPDATE run_item_overrides
-        SET template_id_override = '',
-            note = NULL
-        WHERE run_id = ? AND socket_number = ?
+        INSERT INTO run_item_overrides (
+            run_id, socket_number, template_id_override, size_override, note, updated_at_unix
+        )
+        VALUES (?, ?, '', NULL, NULL, ?)
+        ON CONFLICT(run_id, socket_number) DO UPDATE SET
+            template_id_override = excluded.template_id_override,
+            size_override = NULL,
+            note = NULL,
+            updated_at_unix = excluded.updated_at_unix
         """,
-        (int(run_id), int(socket)),
+        (int(run_id), int(socket), now),
     )
 
 

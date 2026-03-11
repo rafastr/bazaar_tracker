@@ -1321,6 +1321,7 @@ class RunHistoryDb:
         self.ensure_achievements_seeded()
         self.conn.commit()
 
+
     def rebuild_item_firsts(self, templates_db_path: str) -> None:
         """
         Recompute item_firsts from confirmed+won runs in ascending run order.
@@ -1407,71 +1408,98 @@ class RunHistoryDb:
         seen_cross: set[str] = set()
     
         def effective_items(run_id: int) -> list[str]:
-            # base
-            cur.execute("SELECT socket_number, template_id FROM run_items WHERE run_id=?", (run_id,))
-            base = {int(r["socket_number"]): (r["template_id"] or "").strip() for r in cur.fetchall()}
+            cur.execute(
+                "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
+                (run_id,),
+            )
+            base = {
+                int(r["socket_number"]): {
+                    "template_id": (r["template_id"] or "").strip(),
+                    "size": (r["size"] or "").strip().lower() or "small",
+                }
+                for r in cur.fetchall()
+            }
     
-            # overrides
-            cur.execute("SELECT socket_number, template_id_override FROM run_item_overrides WHERE run_id=?", (run_id,))
-            ov = {int(r["socket_number"]): r["template_id_override"] for r in cur.fetchall()}
+            cur.execute(
+                """
+                SELECT socket_number, template_id_override, size_override
+                FROM run_item_overrides
+                WHERE run_id=?
+                """,
+                (run_id,),
+            )
+            ov = {
+                int(r["socket_number"]): {
+                    "template_id": r["template_id_override"],
+                    "size": r["size_override"],
+                }
+                for r in cur.fetchall()
+            }
     
-            out: list[str] = []
-            for sock, tid in base.items():
-                if sock in ov and ov[sock] is not None:
-                    tid_eff = (ov[sock] or "").strip()
-                else:
-                    tid_eff = tid
-                if tid_eff:
-                    out.append(tid_eff)
+            out: list[dict] = []
+            all_sockets = sorted(set(base.keys()) | set(ov.keys()))
+    
+            for sock in all_sockets:
+                b = base.get(sock, {"template_id": "", "size": "small"})
+                tid = b["template_id"]
+                size = b["size"]
+    
+                if sock in ov:
+                    if ov[sock]["template_id"] is not None:
+                        tid = (ov[sock]["template_id"] or "").strip()
+                    if ov[sock]["size"] is not None:
+                        size = (ov[sock]["size"] or "").strip().lower() or "small"
+    
+                if tid:
+                    out.append(
+                        {
+                            "socket_number": sock,
+                            "template_id": tid,
+                            "size": size,
+                        }
+                    )
+    
+            out = visible_board_items(out)
     
             # unique per run is fine for “first time”
-            return sorted(set(out))
+            return sorted({it["template_id"] for it in out if it.get("template_id")})
     
         for rr in win_runs:
             run_id = int(rr["run_id"])
             hero_eff = (rr["hero_override"] or rr["hero_base"] or "").strip() or "(unknown)"
     
-            tids = effective_items(run_id)
-            for tid in tids:
+            for tid in effective_items(run_id):
                 if tid not in seen_any:
                     cur.execute(
                         """
-                        INSERT OR IGNORE INTO item_firsts(template_id, first_win_run_id)
-                        VALUES (?, ?)
+                        INSERT INTO item_firsts(template_id, first_win_run_id, first_cross_win_run_id)
+                        VALUES (?, ?, NULL)
+                        ON CONFLICT(template_id) DO UPDATE SET
+                          first_win_run_id = COALESCE(item_firsts.first_win_run_id, excluded.first_win_run_id)
                         """,
                         (tid, run_id),
                     )
                     seen_any.add(tid)
     
-                # cross-hero logic
-                if tid in seen_cross:
-                    continue
-    
+                cross = False
                 if is_common_tid.get(tid, False):
-                    cur.execute(
-                        """
-                        INSERT INTO item_firsts(template_id, first_cross_win_run_id)
-                        VALUES (?, ?)
-                        ON CONFLICT(template_id) DO UPDATE SET
-                          first_cross_win_run_id=COALESCE(item_firsts.first_cross_win_run_id, excluded.first_cross_win_run_id)
-                        """,
-                        (tid, run_id),
-                    )
-                    seen_cross.add(tid)
-                    continue
+                    cross = True
+                else:
+                    origins = origin_by_tid.get(tid, set())
+                    if hero_eff and origins and (hero_eff not in origins):
+                        cross = True
     
-                origins = origin_by_tid.get(tid, set())
-                if hero_eff and hero_eff not in origins:
+                if cross and tid not in seen_cross:
                     cur.execute(
                         """
-                        INSERT INTO item_firsts(template_id, first_cross_win_run_id)
-                        VALUES (?, ?)
+                        INSERT INTO item_firsts(template_id, first_win_run_id, first_cross_win_run_id)
+                        VALUES (?, NULL, ?)
                         ON CONFLICT(template_id) DO UPDATE SET
-                          first_cross_win_run_id=COALESCE(item_firsts.first_cross_win_run_id, excluded.first_cross_win_run_id)
+                          first_cross_win_run_id = COALESCE(item_firsts.first_cross_win_run_id, excluded.first_cross_win_run_id)
                         """,
                         (tid, run_id),
                     )
                     seen_cross.add(tid)
     
         self.conn.commit()
-
+    

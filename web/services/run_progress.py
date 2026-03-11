@@ -4,6 +4,8 @@ import json
 import sqlite3
 from typing import Any
 
+from core.board_layout import visible_board_items
+
 
 def _parse_origin_set(heroes_json: str) -> set[str]:
     s = (heroes_json or "").strip()
@@ -63,7 +65,6 @@ def get_run_item_progress_table(
       }
     """
 
-    # --- load run hero/flags ---
     h_owns = hconn is None
     if hconn is None:
         hconn = sqlite3.connect(run_history_db_path)
@@ -93,34 +94,72 @@ def get_run_item_progress_table(
         confirmed = int(rr["is_confirmed"] or 0) == 1
         won = int(rr["won"] or 0) == 1
 
-        # --- effective items for this run (tid + size) ---
+        # --- effective visible items for this run (tid + size) ---
         cur.execute(
             "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
             (int(run_id),),
         )
-        base = {int(r["socket_number"]): (r["template_id"] or "").strip() for r in cur.fetchall()}
+        base = {
+            int(r["socket_number"]): {
+                "template_id": (r["template_id"] or "").strip(),
+                "size": (r["size"] or "").strip().lower() or "small",
+            }
+            for r in cur.fetchall()
+        }
 
         cur.execute(
-            "SELECT socket_number, template_id_override FROM run_item_overrides WHERE run_id=?",
+            """
+            SELECT socket_number, template_id_override, size_override
+            FROM run_item_overrides
+            WHERE run_id=?
+            """,
             (int(run_id),),
         )
-        ov = {int(r["socket_number"]): r["template_id_override"] for r in cur.fetchall()}
+        ov = {
+            int(r["socket_number"]): {
+                "template_id": r["template_id_override"],
+                "size": r["size_override"],
+            }
+            for r in cur.fetchall()
+        }
 
-        tids: list[str] = []
-        for sock, tid in base.items():
-            if sock in ov and ov[sock] is not None:
-                tid_eff = (ov[sock] or "").strip()
-            else:
-                tid_eff = tid
-            if tid_eff:
-                tids.append(tid_eff)
+        effective_items: list[dict[str, Any]] = []
+        all_sockets = sorted(set(base.keys()) | set(ov.keys()))
 
-        # de-dup for checklist display
-        tids = sorted(set(tids))
+        for sock in all_sockets:
+            b = base.get(sock, {"template_id": "", "size": "small"})
+            tid = b["template_id"]
+            size = b["size"]
+
+            if sock in ov:
+                if ov[sock]["template_id"] is not None:
+                    tid = (ov[sock]["template_id"] or "").strip()
+                if ov[sock]["size"] is not None:
+                    size = (ov[sock]["size"] or "").strip().lower() or "small"
+
+            if tid:
+                effective_items.append(
+                    {
+                        "socket_number": sock,
+                        "template_id": tid,
+                        "size": size,
+                    }
+                )
+
+        effective_items = visible_board_items(effective_items)
+
+        # de-dup for checklist display, but preserve size from visible item
+        by_tid: dict[str, dict[str, Any]] = {}
+        for it in effective_items:
+            tid = (it.get("template_id") or "").strip()
+            if not tid or tid in by_tid:
+                continue
+            by_tid[tid] = it
+
+        tids = sorted(by_tid.keys())
         if not tids:
             return {"hero_eff": hero_eff, "won": won, "confirmed": confirmed, "rows": []}
 
-        # --- load template names + origins for just these tids ---
         t_owns = tconn is None
         if tconn is None:
             tconn = sqlite3.connect(templates_db_path)
@@ -151,24 +190,11 @@ def get_run_item_progress_table(
             origin_by_tid[tid] = origins
             is_common_tid[tid] = any(h.lower() == "common" for h in origins) or (not origins)
 
-        # --- compute which items were "first unlocked" by this run ---
-        # We compare current progress rows vs progress excluding this run.
-        # This is done via item_firsts table if you have it, otherwise use item_hero_wins logic.
-        # Your current app.py implementation already had a stable logic here; keep it consistent.
-
-        # Current: item_hero_wins is rebuildable. We'll treat "first unlock" as:
-        # - new_won_this: there was no win_count>0 for this template_id before this run across any hero
-        # - new_won_other: there was no cross-hero win_count>0 before this run (rule applied)
-        #
-        # To avoid re-implementing complex "before/after" here, we use item_firsts if present.
-        # If item_firsts doesn't exist, we fall back to conservative false flags.
         rows_out: list[dict[str, Any]] = []
 
-
-        # quick schema check
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='item_firsts'")
         has_item_firsts = cur.fetchone() is not None
-        
+
         firsts_by_tid: dict[str, dict[str, Any]] = {}
         if has_item_firsts:
             cur.execute(
@@ -182,8 +208,6 @@ def get_run_item_progress_table(
             for r in cur.fetchall():
                 firsts_by_tid[r["template_id"]] = dict(r)
 
-
-        # imported checklist completion acts like pre-existing progress baseline
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='imported_item_completion'")
         has_imported_completion = cur.fetchone() is not None
 
@@ -207,8 +231,6 @@ def get_run_item_progress_table(
                     "ten_wins": bool(r["ten_wins"]),
                 }
 
-        # existing progress (after rebuild) from item_hero_wins
-        # won_this: any hero has win_count>0 for this tid
         cur.execute(
             """
             SELECT template_id, SUM(win_count) AS total
@@ -220,8 +242,6 @@ def get_run_item_progress_table(
         )
         won_any = {r["template_id"]: int(r["total"] or 0) > 0 for r in cur.fetchall()}
 
-        # won_other: any hero has win_count>0 where hero != origin (or common rule)
-        # We approximate using stored hero wins vs origins.
         cur.execute(
             """
             SELECT template_id, hero, win_count
@@ -249,15 +269,12 @@ def get_run_item_progress_table(
                 continue
 
             name = tr.get("name") or tid
-            size = tr.get("size") or ""
+            size = by_tid.get(tid, {}).get("size") or tr.get("size") or ""
 
             imported = imported_by_tid.get(tid, {})
 
             real_won_this = bool(won_any.get(tid, False))
             real_won_other = bool(won_other_map.get(tid, False))
-
-            won_this = real_won_this or bool(imported.get("win_this"))
-            won_other = real_won_other or bool(imported.get("win_other"))
 
             fi = firsts_by_tid.get(tid, {})
 
@@ -272,6 +289,10 @@ def get_run_item_progress_table(
                 bool(fi.get("first_cross_win_run_id") == int(run_id)) if fi else False
             ) and not imported_win_other
 
+            # Treat “new unlock on this run” as checked too.
+            won_this = real_won_this or bool(imported.get("win_this")) or new_won_this
+            won_other = real_won_other or bool(imported.get("win_other")) or new_won_other
+
             rows_out.append(
                 {
                     "template_id": tid,
@@ -284,7 +305,6 @@ def get_run_item_progress_table(
                 }
             )
 
-        # show only “new” rows if the run is confirmed + won (matches your UI rule)
         if confirmed and won:
             rows_out = [r for r in rows_out if r["new_won_this"] or r["new_won_other"]]
         else:

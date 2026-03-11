@@ -180,6 +180,33 @@ def get_item_checklist(
                     "win_other": bool(r["win_other"]),
                     "ten_wins": bool(r["ten_wins"]),
                 }
+
+        hcur.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type='table' AND name='item_firsts'
+            """
+        )
+        has_item_firsts = hcur.fetchone() is not None
+
+        firsts_by_item: dict[str, dict[str, bool]] = {}
+        if has_item_firsts:
+            hcur.execute(
+                """
+                SELECT template_id, first_win_run_id, first_cross_win_run_id
+                FROM item_firsts
+                """
+            )
+            for r in hcur.fetchall():
+                tid = (r["template_id"] or "").strip()
+                if not tid:
+                    continue
+                firsts_by_item[tid] = {
+                    "won_this": r["first_win_run_id"] is not None,
+                    "won_other": r["first_cross_win_run_id"] is not None,
+                }
+
     finally:
         if h_owns:
             hconn.close()
@@ -204,9 +231,11 @@ def get_item_checklist(
         origin_heroes = parse_origin_heroes(t.get("heroes_json") or "")
 
         winners = winners_by_item.get(tid, set())
-        imported = imported_by_item.get(tid, {})
 
-        real_won_any = bool(winners)
+        imported = imported_by_item.get(tid, {})
+        firsts = firsts_by_item.get(tid, {})
+
+        real_won_any = bool(winners) or bool(firsts.get("won_this"))
 
         origin_no_common = sorted(
             [h for h in origin_heroes if h.strip().lower() != "common"],
@@ -222,7 +251,9 @@ def get_item_checklist(
         else:
             group = " / ".join(origin_no_common)
 
-        if not real_won_any:
+        if bool(firsts.get("won_other")):
+            real_won_other = True
+        elif not real_won_any:
             real_won_other = False
         elif is_common:
             real_won_other = True
@@ -231,6 +262,7 @@ def get_item_checklist(
 
         won_any = real_won_any or bool(imported.get("win_this"))
         won_other = real_won_other or bool(imported.get("win_other"))
+
         ten_wins = bool(imported.get("ten_wins"))
 
         out.append(
