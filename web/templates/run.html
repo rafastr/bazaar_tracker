@@ -345,8 +345,10 @@
       {% endif %}
     </h2>
 
+    {% set board_blocks = run.editor_blocks %}
+    
     <div class="board-strip">
-      {% for block in grid %}
+      {% for block in board_blocks %}
         {% set tid = (block.template_id or "")|trim %}
         <div class="board-item board-size-{{ block.span }}">
           {% if tid %}
@@ -361,12 +363,17 @@
           <div class="board-name">{{ block.name }}</div>
 
           {% if edit_mode %}
+          
+            {% set sock = run.socket_state.get(block.socket_number, {}) %}
+            {% set current_size = sock.get("size", block.size or "small") %}
+            {% set current_tid = sock.get("template_id", tid) %}
+
             <button type="button" class="edit-btn" data-socket="{{ block.socket_number }}">
               Edit
             </button>
-
-            <div class="edit-panel" id="edit-{{ block.socket_number }}" data-size="{{ block.size }}" hidden>
-            
+          
+            <div class="edit-panel" id="edit-{{ block.socket_number }}" data-size="{{ current_size }}" hidden>
+          
               <form method="post"
                     action="{{ url_for('runs.item_clear', run_id=run.run_id) }}"
                     style="margin-bottom: 8px;">
@@ -374,36 +381,42 @@
                 <input type="hidden" name="return_edit" value="1" />
                 <button type="submit" class="secondary">Clear slot</button>
               </form>
-            
-              {% if not block.template_id or block.name == "(unknown item)" or block.name == "(empty)" %}
+          
+              {% if not tid %}
                 <form method="post"
                       action="{{ url_for('runs.item_size_set', run_id=run.run_id) }}"
                       class="size-form"
                       style="margin-bottom: 8px;">
                   <input type="hidden" name="socket" value="{{ block.socket_number }}" />
-            
+                  <input type="hidden" name="template_id" value="{{ current_tid }}" />
+                  <input type="hidden" name="return_edit" value="1" />
+              
                   <label style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <span>Size</span>
                     <select name="size" onchange="this.form.submit()">
-                      <option value="small" {% if block.size == 'small' %}selected{% endif %}>Small</option>
-                      <option value="medium" {% if block.size == 'medium' %}selected{% endif %}>Medium</option>
-                      <option value="large" {% if block.size == 'large' %}selected{% endif %}>Large</option>
+                      <option value="small" {% if current_size == 'small' %}selected{% endif %}>Small</option>
+                      <option value="medium" {% if current_size == 'medium' %}selected{% endif %}>Medium</option>
+                      <option value="large" {% if current_size == 'large' %}selected{% endif %}>Large</option>
                     </select>
                   </label>
                 </form>
               {% endif %}
-            
+          
               <input type="text" class="q" placeholder="Search item name..." />
               <div class="results"></div>
-            
-              <form method="post" action="{{ url_for('runs.item_set', run_id=run.run_id) }}" class="set-form">
+          
+              <form method="post"
+                    action="{{ url_for('runs.item_set', run_id=run.run_id) }}"
+                    class="set-form">
                 <input type="hidden" name="socket" value="{{ block.socket_number }}" />
                 <input type="hidden" name="template_id" class="template_id" />
                 <input type="hidden" name="return_edit" value="1" />
               </form>
+          
             </div>
-
+          
           {% endif %}
+
         </div>
       {% endfor %}
     </div>

@@ -4,7 +4,7 @@ import json
 import sqlite3
 from typing import Any
 
-from core.board_layout import visible_board_items
+from core.run_board import get_effective_board_items
 
 
 def _parse_origin_set(heroes_json: str) -> set[str]:
@@ -16,10 +16,6 @@ def _parse_origin_set(heroes_json: str) -> set[str]:
     except Exception:
         return set()
 
-    # Support a few shapes safely:
-    # - ["Vanessa","Dooley"]
-    # - {"heroes":["Vanessa","Dooley"]}
-    # - "Vanessa"
     if isinstance(data, list):
         vals = data
     elif isinstance(data, dict):
@@ -45,26 +41,6 @@ def get_run_item_progress_table(
     hconn: sqlite3.Connection | None = None,
     tconn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    """
-    Returns:
-      {
-        "hero_eff": str,
-        "won": bool,
-        "confirmed": bool,
-        "rows": [
-          {
-            "template_id": str,
-            "name": str,
-            "size": str,
-            "won_this": bool,
-            "won_other": bool,
-            "new_won_this": bool,
-            "new_won_other": bool,
-          }, ...
-        ]
-      }
-    """
-
     h_owns = hconn is None
     if hconn is None:
         hconn = sqlite3.connect(run_history_db_path)
@@ -94,61 +70,8 @@ def get_run_item_progress_table(
         confirmed = int(rr["is_confirmed"] or 0) == 1
         won = int(rr["won"] or 0) == 1
 
-        # --- effective visible items for this run (tid + size) ---
-        cur.execute(
-            "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
-            (int(run_id),),
-        )
-        base = {
-            int(r["socket_number"]): {
-                "template_id": (r["template_id"] or "").strip(),
-                "size": (r["size"] or "").strip().lower() or "small",
-            }
-            for r in cur.fetchall()
-        }
+        effective_items = get_effective_board_items(hconn, int(run_id))
 
-        cur.execute(
-            """
-            SELECT socket_number, template_id_override, size_override
-            FROM run_item_overrides
-            WHERE run_id=?
-            """,
-            (int(run_id),),
-        )
-        ov = {
-            int(r["socket_number"]): {
-                "template_id": r["template_id_override"],
-                "size": r["size_override"],
-            }
-            for r in cur.fetchall()
-        }
-
-        effective_items: list[dict[str, Any]] = []
-        all_sockets = sorted(set(base.keys()) | set(ov.keys()))
-
-        for sock in all_sockets:
-            b = base.get(sock, {"template_id": "", "size": "small"})
-            tid = b["template_id"]
-            size = b["size"]
-
-            if sock in ov:
-                if ov[sock]["template_id"] is not None:
-                    tid = (ov[sock]["template_id"] or "").strip()
-                if ov[sock]["size"] is not None:
-                    size = (ov[sock]["size"] or "").strip().lower() or "small"
-
-            if tid:
-                effective_items.append(
-                    {
-                        "socket_number": sock,
-                        "template_id": tid,
-                        "size": size,
-                    }
-                )
-
-        effective_items = visible_board_items(effective_items)
-
-        # de-dup for checklist display, but preserve size from visible item
         by_tid: dict[str, dict[str, Any]] = {}
         for it in effective_items:
             tid = (it.get("template_id") or "").strip()
@@ -272,12 +195,10 @@ def get_run_item_progress_table(
             size = by_tid.get(tid, {}).get("size") or tr.get("size") or ""
 
             imported = imported_by_tid.get(tid, {})
-
             real_won_this = bool(won_any.get(tid, False))
             real_won_other = bool(won_other_map.get(tid, False))
 
             fi = firsts_by_tid.get(tid, {})
-
             imported_win_this = bool(imported.get("win_this"))
             imported_win_other = bool(imported.get("win_other"))
 
@@ -289,7 +210,6 @@ def get_run_item_progress_table(
                 bool(fi.get("first_cross_win_run_id") == int(run_id)) if fi else False
             ) and not imported_win_other
 
-            # Treat “new unlock on this run” as checked too.
             won_this = real_won_this or bool(imported.get("win_this")) or new_won_this
             won_other = real_won_other or bool(imported.get("win_other")) or new_won_other
 

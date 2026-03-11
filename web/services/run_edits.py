@@ -80,10 +80,54 @@ def set_item_override(
         size_clean = (size or "").strip().lower() or None
         note_clean = (note or "").strip() or None
 
+        # Preserve / recover the effective template if this is a size-only edit.
+        if template_id_clean is None:
+            cur.execute(
+                """
+                SELECT template_id_override
+                FROM run_item_overrides
+                WHERE run_id = ? AND socket_number = ?
+                """,
+                (int(run_id), int(socket_number)),
+            )
+            row = cur.fetchone()
+
+            if row and row["template_id_override"] is not None:
+                existing_override_tid = (row["template_id_override"] or "").strip()
+                if existing_override_tid:
+                    # Real override already present.
+                    template_id_clean = existing_override_tid
+                else:
+                    # Explicit blank override exists.
+                    # Recover from base run_items instead of keeping it blank.
+                    cur.execute(
+                        """
+                        SELECT template_id
+                        FROM run_items
+                        WHERE run_id = ? AND socket_number = ?
+                        """,
+                        (int(run_id), int(socket_number)),
+                    )
+                    base_row = cur.fetchone()
+                    if base_row and base_row["template_id"]:
+                        template_id_clean = (base_row["template_id"] or "").strip() or None
+            else:
+                cur.execute(
+                    """
+                    SELECT template_id
+                    FROM run_items
+                    WHERE run_id = ? AND socket_number = ?
+                    """,
+                    (int(run_id), int(socket_number)),
+                )
+                row = cur.fetchone()
+                if row and row["template_id"]:
+                    template_id_clean = (row["template_id"] or "").strip() or None
+
         db.upsert_item_override(
             int(run_id),
             int(socket_number),
-            template_id_override=template_id_clean,
+            template_id_override=template_id_clean if template_id is not None else None,
             size_override=size_clean,
             note=note_clean,
         )

@@ -335,7 +335,8 @@ def item_size_set(run_id: int):
     if size not in ("small", "medium", "large"):
         return ("Invalid size", 400)
 
-    set_item_override(run_id, socket, template_id=None, size=size)
+    template_id = request.form.get("template_id")
+    set_item_override(run_id, socket, template_id=template_id, size=size)
     return redirect(url_for("runs.run_detail", run_id=run_id, edit=1))
 
 

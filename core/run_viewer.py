@@ -3,6 +3,8 @@ import sqlite3
 from typing import Any, Dict, List, Optional
 
 from .run_history_db import RunHistoryDb
+from core.run_board import get_effective_board_items_with_meta, get_effective_socket_state
+from core.run_board import build_editor_board_blocks
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
@@ -93,8 +95,6 @@ def get_run_board(
     templates_db_path: str,
     run_id: int,
 ) -> Dict[str, Any]:
-
-    # Ensure schema exists (so running --last-run before watch mode still works)
     tmp = RunHistoryDb(run_history_db_path)
     tmp.close()
 
@@ -116,121 +116,44 @@ def get_run_board(
 
         cur.execute(
             """
-            SELECT socket_number, template_id, size
-            FROM run_items
-            WHERE run_id = ?
-            ORDER BY socket_number ASC
-            """,
-            (run_id,),
-        )
-        items = cur.fetchall()
-
-        cur.execute(
-                "SELECT hero_override, rank_override, notes, is_confirmed FROM run_overrides WHERE run_id=?",
-                (run_id,),
-                )
-        ov = cur.fetchone()
-
-        hero_eff = (ov["hero_override"] if ov and ov["hero_override"] else run_row["hero"])
-        rank_eff = (ov["rank_override"] if ov and ov["rank_override"] is not None else run_row["rank"])
-        notes = (ov["notes"] if ov else None)
-        is_confirmed = (ov["is_confirmed"] if ov else 0)
-
-        cur.execute(
-            """
-            SELECT socket_number, template_id_override, size_override, note
-            FROM run_item_overrides
+            SELECT hero_override, rank_override, notes, is_confirmed
+            FROM run_overrides
             WHERE run_id=?
             """,
             (run_id,),
         )
-        ov_items = {int(r["socket_number"]): dict(r) for r in cur.fetchall()}
+        ov = cur.fetchone()
 
-        # Resolve names from templates DB (if template_id not null)
-        resolved_items: List[Dict[str, Any]] = []
-        tcur = td.cursor()
+        hero_eff = ov["hero_override"] if ov and ov["hero_override"] else run_row["hero"]
+        rank_eff = ov["rank_override"] if ov and ov["rank_override"] is not None else run_row["rank"]
+        notes = ov["notes"] if ov else None
+        is_confirmed = ov["is_confirmed"] if ov else 0
 
-        base_items_by_socket = {
-            int(it["socket_number"]): dict(it)
-            for it in items
-        }
+        resolved_items = get_effective_board_items_with_meta(rh, td, run_id)
 
-        all_sockets = sorted(set(base_items_by_socket.keys()) | set(ov_items.keys()))
-
-        for socket in all_sockets:
-            base = base_items_by_socket.get(socket, {})
-            ovi = ov_items.get(socket)
-
-            base_template_id = base.get("template_id")
-            base_size = base.get("size")
-
-            template_eff = base_template_id
-            size_eff = base_size
-            override_note = None
-
-            if ovi:
-                if ovi.get("template_id_override") is not None:
-                    template_eff = ovi.get("template_id_override")
-                if ovi.get("size_override") is not None:
-                    size_eff = ovi.get("size_override")
-                override_note = ovi.get("note")
-
-            if not size_eff:
-                size_eff = "small"
-
-            name: Optional[str] = None
-            art_key: Optional[str] = None
-
-            if template_eff:
-                tcur.execute(
-                    '''
-                    SELECT name, art_key
-                    FROM templates
-                    WHERE template_id = ?
-                      AND COALESCE(ignored, 0) = 0
-                    ''',
-                    (template_eff,),
-                )
-                trow = tcur.fetchone()
-                if trow:
-                    name = trow["name"]
-                    art_key = trow["art_key"]
-
-            resolved_items.append(
-                {
-                    "socket_number": socket,
-                    "size": size_eff,
-                    "template_id": template_eff,
-                    "name": name,
-                    "art_key": art_key,
-                    "base_template_id": base_template_id,
-                    "base_size": base_size,
-                    "overridden": bool(ovi),
-                    "override_note": override_note,
-                }
-            )
+        socket_state = get_effective_socket_state(rh, run_id)
+        editor_blocks = build_editor_board_blocks(socket_state)
 
         return {
             "run_id": run_row["run_id"],
             "ended_at_unix": run_row["ended_at_unix"],
             "screenshot_path": run_row["screenshot_path"],
-        
             "hero": run_row["hero"],
             "rank": run_row["rank"],
-        
-            "season_id": run_row["season_id"],  # <-- ADD THIS
-        
+            "season_id": run_row["season_id"],
             "hero_effective": hero_eff,
             "rank_effective": rank_eff,
             "notes": notes,
             "is_confirmed": is_confirmed,
-        
             "items": resolved_items,
+            "socket_state": socket_state,
+            "editor_blocks": editor_blocks,
         }
 
     finally:
         rh.close()
         td.close()
+
 
 def search_templates(
     templates_db_path: str,

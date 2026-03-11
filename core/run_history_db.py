@@ -6,7 +6,7 @@ import threading
 
 from core.ocr_metrics import extract_run_metrics
 from core.ocr_rois import ROIS
-from core.board_layout import visible_board_items
+from core.run_board import get_effective_board_items
 
 
 class RunHistoryDb:
@@ -700,11 +700,10 @@ class RunHistoryDb:
     def apply_confirmed_run_item_wins(self, run_id: int, templates_db_path: str) -> None:
         """
         If run is confirmed and won, increment item_hero_wins for each item on board.
-        Uses effective hero (override if present) and effective items (apply item overrides).
+        Uses effective hero (override if present) and canonical effective board items.
         """
         cur = self.conn.cursor()
     
-        # Need run + overrides + metrics
         cur.execute(
             """
             SELECT
@@ -731,60 +730,8 @@ class RunHistoryDb:
         hero_eff = (row["hero_override"] or row["hero_base"] or "").strip()
         if not hero_eff:
             return
-
-        # base items
-        cur.execute(
-            "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
-            (run_id,),
-        )
-        base = {
-            int(r["socket_number"]): {
-                "template_id": (r["template_id"] or "").strip(),
-                "size": (r["size"] or "").strip().lower() or "small",
-            }
-            for r in cur.fetchall()
-        }
-
-        # overrides
-        cur.execute(
-            "SELECT socket_number, template_id_override, size_override FROM run_item_overrides WHERE run_id=?",
-            (run_id,),
-        )
-        ov = {
-            int(r["socket_number"]): {
-                "template_id": r["template_id_override"],
-                "size": r["size_override"],
-            }
-            for r in cur.fetchall()
-        }
-
-        # effective items = union(base sockets, override sockets)
-        effective_items = []
-        all_sockets = sorted(set(base.keys()) | set(ov.keys()))
-
-        for sock in all_sockets:
-            b = base.get(sock, {"template_id": "", "size": "small"})
-            tid = b["template_id"]
-            size = b["size"]
-
-            if sock in ov:
-                if ov[sock]["template_id"] is not None:
-                    tid = (ov[sock]["template_id"] or "").strip()
-                if ov[sock]["size"] is not None:
-                    size = (ov[sock]["size"] or "").strip().lower() or "small"
-
-            if tid:
-                effective_items.append(
-                    {
-                        "socket_number": sock,
-                        "template_id": tid,
-                        "size": size,
-                    }
-                )
-
-        effective_items = visible_board_items(effective_items)
-
-        # De-dup for checklist purposes
+    
+        effective_items = get_effective_board_items(self.conn, run_id)
         template_ids = sorted({it["template_id"] for it in effective_items if it.get("template_id")})
         if not template_ids:
             return
@@ -808,22 +755,17 @@ class RunHistoryDb:
     def rebuild_item_hero_wins(self) -> None:
         """
         Recompute item_hero_wins from all confirmed + won runs.
-        This keeps achievements consistent even if confirmed runs are edited later.
         """
         cur = self.conn.cursor()
         now = self._now()
     
-        # wipe
         cur.execute("DELETE FROM item_hero_wins")
     
-        # all confirmed + won runs
         cur.execute(
             """
             SELECT r.run_id,
                    r.hero AS hero_base,
-                   o.hero_override,
-                   o.is_confirmed,
-                   m.won
+                   o.hero_override
             FROM runs r
             LEFT JOIN run_overrides o ON o.run_id = r.run_id
             LEFT JOIN run_metrics  m ON m.run_id = r.run_id
@@ -839,59 +781,7 @@ class RunHistoryDb:
             if not hero_eff:
                 continue
     
-            # base items
-            cur.execute(
-                "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
-                (run_id,),
-            )
-            base = {
-                int(r["socket_number"]): {
-                    "template_id": (r["template_id"] or "").strip(),
-                    "size": (r["size"] or "").strip().lower() or "small",
-                }
-                for r in cur.fetchall()
-            }
-
-            # overrides
-            cur.execute(
-                "SELECT socket_number, template_id_override, size_override FROM run_item_overrides WHERE run_id=?",
-                (run_id,),
-            )
-            ov = {
-                int(r["socket_number"]): {
-                    "template_id": r["template_id_override"],
-                    "size": r["size_override"],
-                }
-                for r in cur.fetchall()
-            }
-
-            # effective items = union(base sockets, override sockets)
-            effective_items = []
-            all_sockets = sorted(set(base.keys()) | set(ov.keys()))
-
-            for sock in all_sockets:
-                b = base.get(sock, {"template_id": "", "size": "small"})
-                tid = b["template_id"]
-                size = b["size"]
-
-                if sock in ov:
-                    if ov[sock]["template_id"] is not None:
-                        tid = (ov[sock]["template_id"] or "").strip()
-                    if ov[sock]["size"] is not None:
-                        size = (ov[sock]["size"] or "").strip().lower() or "small"
-
-                if tid:
-                    effective_items.append(
-                        {
-                            "socket_number": sock,
-                            "template_id": tid,
-                            "size": size,
-                        }
-                    )
-
-            effective_items = visible_board_items(effective_items)
-
-            # unique for checklist purposes
+            effective_items = get_effective_board_items(self.conn, run_id)
             template_ids = {it["template_id"] for it in effective_items if it.get("template_id")}
     
             for tid in template_ids:
@@ -905,7 +795,9 @@ class RunHistoryDb:
                     """,
                     (tid, hero_eff, now),
                 )
+    
         self.conn.commit()
+
 
     def ensure_achievements_seeded(self) -> None:
         """
@@ -1071,59 +963,6 @@ class RunHistoryDb:
         )
         runs = cur.fetchall()
 
-        # Helpers to load effective items for a run (template_id + size)
-        def get_effective_items(run_id: int) -> list[dict]:
-            # base
-            cur.execute(
-                "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
-                (run_id,),
-            )
-            base = {
-                int(r["socket_number"]): {
-                    "tid": (r["template_id"] or "").strip(),
-                    "size": (r["size"] or "").strip().lower(),
-                }
-                for r in cur.fetchall()
-            }
-
-            # overrides
-            cur.execute(
-                "SELECT socket_number, template_id_override, size_override FROM run_item_overrides WHERE run_id=?",
-                (run_id,),
-            )
-            ov = {
-                int(r["socket_number"]): {
-                    "tid": r["template_id_override"],
-                    "size": r["size_override"],
-                }
-                for r in cur.fetchall()
-            }
-
-            out = []
-            all_sockets = sorted(set(base.keys()) | set(ov.keys()))
-
-            for sock in all_sockets:
-                b = base.get(sock, {"tid": "", "size": "small"})
-                tid = b["tid"]
-                size = b["size"] or "small"
-
-                if sock in ov:
-                    if ov[sock]["tid"] is not None:
-                        tid = (ov[sock]["tid"] or "").strip()
-                    if ov[sock]["size"] is not None:
-                        size = (ov[sock]["size"] or "").strip().lower() or "small"
-
-                if tid:
-                    out.append(
-                        {
-                            "socket_number": sock,
-                            "template_id": tid,
-                            "size": size,
-                        }
-                    )
-
-            out = visible_board_items(out)
-            return out
 
         def unlock(key: str, run_id: int | None = None, meta: dict | None = None) -> None:
             cur.execute(
@@ -1234,7 +1073,8 @@ class RunHistoryDb:
             if isinstance(gold, int) and gold >= 500:
                 unlock("rich_richer", run_id, {"gold": gold})
             
-            items = get_effective_items(run_id)
+            items = get_effective_board_items(self.conn, run_id)
+
             non_empty = items[:]  # already excludes empty
             sizes = {it["size"] for it in non_empty}
             tids = [it["template_id"] for it in non_empty]
@@ -1325,17 +1165,11 @@ class RunHistoryDb:
     def rebuild_item_firsts(self, templates_db_path: str) -> None:
         """
         Recompute item_firsts from confirmed+won runs in ascending run order.
-        - first_win_run_id: first time item appears in any confirmed win.
-        - first_cross_win_run_id: first time item appears in a confirmed win
-          where the winning hero is NOT in item's origin heroes
-          (Common items count as cross immediately).
-        Deterministic and safe to rebuild after edits/unconfirms.
         """
         import json
     
         cur = self.conn.cursor()
     
-        # ---- load origins from templates DB ----
         tconn = sqlite3.connect(templates_db_path)
         tconn.row_factory = sqlite3.Row
         try:
@@ -1384,10 +1218,8 @@ class RunHistoryDb:
             origin_by_tid[tid] = origins
             is_common_tid[tid] = any(h.lower() == "common" for h in origins) or (not origins)
     
-        # ---- wipe ----
         cur.execute("DELETE FROM item_firsts")
     
-        # ---- confirmed+won runs in order ----
         cur.execute(
             """
             SELECT
@@ -1407,68 +1239,19 @@ class RunHistoryDb:
         seen_any: set[str] = set()
         seen_cross: set[str] = set()
     
-        def effective_items(run_id: int) -> list[str]:
-            cur.execute(
-                "SELECT socket_number, template_id, size FROM run_items WHERE run_id=?",
-                (run_id,),
-            )
-            base = {
-                int(r["socket_number"]): {
-                    "template_id": (r["template_id"] or "").strip(),
-                    "size": (r["size"] or "").strip().lower() or "small",
-                }
-                for r in cur.fetchall()
-            }
-    
-            cur.execute(
-                """
-                SELECT socket_number, template_id_override, size_override
-                FROM run_item_overrides
-                WHERE run_id=?
-                """,
-                (run_id,),
-            )
-            ov = {
-                int(r["socket_number"]): {
-                    "template_id": r["template_id_override"],
-                    "size": r["size_override"],
-                }
-                for r in cur.fetchall()
-            }
-    
-            out: list[dict] = []
-            all_sockets = sorted(set(base.keys()) | set(ov.keys()))
-    
-            for sock in all_sockets:
-                b = base.get(sock, {"template_id": "", "size": "small"})
-                tid = b["template_id"]
-                size = b["size"]
-    
-                if sock in ov:
-                    if ov[sock]["template_id"] is not None:
-                        tid = (ov[sock]["template_id"] or "").strip()
-                    if ov[sock]["size"] is not None:
-                        size = (ov[sock]["size"] or "").strip().lower() or "small"
-    
-                if tid:
-                    out.append(
-                        {
-                            "socket_number": sock,
-                            "template_id": tid,
-                            "size": size,
-                        }
-                    )
-    
-            out = visible_board_items(out)
-    
-            # unique per run is fine for “first time”
-            return sorted({it["template_id"] for it in out if it.get("template_id")})
-    
         for rr in win_runs:
             run_id = int(rr["run_id"])
             hero_eff = (rr["hero_override"] or rr["hero_base"] or "").strip() or "(unknown)"
     
-            for tid in effective_items(run_id):
+            tids = sorted(
+                {
+                    it["template_id"]
+                    for it in get_effective_board_items(self.conn, run_id)
+                    if it.get("template_id")
+                }
+            )
+    
+            for tid in tids:
                 if tid not in seen_any:
                     cur.execute(
                         """
@@ -1502,4 +1285,3 @@ class RunHistoryDb:
                     seen_cross.add(tid)
     
         self.conn.commit()
-    

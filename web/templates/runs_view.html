@@ -3,9 +3,11 @@
   <div class="page-header">
     <h1>Runs</h1>
   
-    <a href="{{ url_for('runs.run_create_empty') }}" class="btn-primary">
-      + Add run
-    </a>
+
+    <form method="post" action="{{ url_for('runs.run_create_empty') }}" style="display:inline;">
+      <button type="submit" class="btn-primary">+ Add run</button>
+    </form>
+
   </div>
 
   {% if not runs %}
