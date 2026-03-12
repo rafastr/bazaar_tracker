@@ -8,3 +8,4 @@ debut/
 ocr_debug/
 db/
 resources/*
+!resources/.keep

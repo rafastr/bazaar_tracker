@@ -4,9 +4,8 @@ import os
 import secrets
 from datetime import datetime
 from dotenv import load_dotenv
-load_dotenv()
-
 from flask import Flask
+from pathlib import Path
 
 from web.db_context import close_db, get_hero_colors_map
 from web.routes.achievements import achievements_bp
@@ -17,6 +16,14 @@ from web.routes.main import main_bp
 from web.routes.manage import manage_bp
 from web.routes.runs import runs_bp
 from core.config import APP_NAME, APP_VERSION
+from core.bootstrap import ensure_resources
+
+APP_ROOT = Path(__file__).resolve().parent.parent
+BUNDLED_RESOURCES = APP_ROOT / "resources"
+
+ensure_resources(BUNDLED_RESOURCES)
+
+load_dotenv()
 
 
 def create_app() -> Flask:
