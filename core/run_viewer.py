@@ -48,6 +48,7 @@ def list_runs(
                 COALESCE(o.rank_override, r.rank) AS rank_effective,
         
                 m.wins AS wins,
+                m.prestige AS prestige,
                 m.won  AS won,
 
                 r.season_id AS season_id

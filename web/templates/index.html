@@ -81,7 +81,7 @@
         {% if current_rank is not none %}
           #{{ current_rank }}
         {% else %}
-          —
+          -
         {% endif %}
       </div>
     </div>
@@ -132,7 +132,7 @@
         <p class="hint" id="rankChartLegend" style="margin: 8px 0 0;"></p>
       {% else %}
         <p class="hint" style="margin: 8px 0 0;">
-          Only records legendary rank. No legendary games stored.
+          No known ranks available for the selected runs. Only records legendary rank.
         </p>
       {% endif %}
     </div>
@@ -229,95 +229,205 @@
       ctx.textBaseline = "middle";
       ctx.fillText(total + " runs", cx, cy);
     })();
-      // Graph of ranks
-    (function () {
-      const data = {{ rank_series|tojson }};
-      const canvas = document.getElementById("rankChart");
-      if (!canvas || !data || data.length < 2) return;
-      
-      const ctx = canvas.getContext("2d");
-      
-      // Make canvas crisp on HiDPI screens
-      const dpr = window.devicePixelRatio || 1;
-      const cssW = canvas.clientWidth || 520;
-      const cssH = canvas.clientHeight || 220;
-      
-      canvas.width = Math.floor(cssW * dpr);
-      canvas.height = Math.floor(cssH * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      
-      const w = cssW;
-      const h = cssH;
-      const pad = 18;
 
-      const ranks = data.map(d => d.rank);
-      const maxRank = Math.max(...ranks);
-      const minRank = Math.min(...ranks);
-        
-      // rank 1 => highest score
-      // rank max => lowest score
-      // Convert rank so "better" (lower) is higher on chart
-      const scores = ranks.map(r => (maxRank + 1) - r);
-      const maxScore = Math.max(...scores);
-      const minScore = Math.min(...scores);
-      
-      function x(i) {
-        const n = data.length - 1;
-        return pad + (n ? (i / n) * (w - pad*2) : 0);
-      }
-      function y(score) {
-        const denom = (maxScore - minScore) || 1;
-        const t = (score - minScore) / denom; // 0..1
-        return (h - pad) - t * (h - pad*2);
-      }
-     
-      // background
-      ctx.clearRect(0,0,w,h);
-      ctx.fillStyle = "rgba(255,255,255,0.02)";
-      ctx.fillRect(0,0,w,h);
-      
-      // background lines
-      ctx.strokeStyle = "rgba(255,255,255,0.08)";
-      ctx.lineWidth = 1;
-      
-      for (let i = 0; i <= 4; i++) {
-        const y = pad + i * (h - pad*2) / 4;
-        ctx.beginPath();
-        ctx.moveTo(pad, y);
-        ctx.lineTo(w - pad, y);
-        ctx.stroke();
-      }
+  // Graph of ranks
+  (function () {
+    const rawData = {{ rank_series|tojson }};
+    const canvas = document.getElementById("rankChart");
+    if (!canvas || !rawData || rawData.length < 2) return;
 
+    // Always plot oldest -> newest so latest run is on the right.
+    const data = [...rawData].sort((a, b) => {
+      const ar = Number(a.run_id || 0);
+      const br = Number(b.run_id || 0);
+      return ar - br;
+    });
 
-      // line
+    const validRanks = data
+      .map(d => d.rank)
+      .filter(r => typeof r === "number" && Number.isFinite(r));
+
+    if (!validRanks.length) return;
+
+    const ctx = canvas.getContext("2d");
+
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 520;
+    const cssH = canvas.clientHeight || 220;
+
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const w = cssW;
+    const h = cssH;
+    const pad = 18;
+
+    const maxRank = Math.max(...validRanks);
+    const minRank = Math.min(...validRanks);
+
+    function scoreFromRank(rank) {
+      return (maxRank + 1) - rank;
+    }
+
+    const validScores = validRanks.map(scoreFromRank);
+    const maxScore = Math.max(...validScores);
+    const minScore = Math.min(...validScores);
+
+    function x(i) {
+      const n = data.length - 1;
+      return pad + (n ? (i / n) * (w - pad * 2) : 0);
+    }
+
+    function y(score) {
+      const denom = (maxScore - minScore) || 1;
+      const t = (score - minScore) / denom;
+      return (h - pad) - t * (h - pad * 2);
+    }
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(255,255,255,0.02)";
+    ctx.fillRect(0, 0, w, h);
+
+    // background lines
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const gy = pad + i * (h - pad * 2) / 4;
       ctx.beginPath();
-      scores.forEach((s, i) => {
-        const px = x(i);
-        const py = y(s);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.strokeStyle = "rgba(140,220,180,0.85)";
-      ctx.lineWidth = 2;
+      ctx.moveTo(pad, gy);
+      ctx.lineTo(w - pad, gy);
       ctx.stroke();
-    
-      // points
-      ctx.fillStyle = "rgba(233,233,239,0.9)";
-      scores.forEach((s, i) => {
-        ctx.beginPath();
-        ctx.arc(x(i), y(s), 2.5, 0, Math.PI*2);
-        ctx.fill();
-      });
-    
-      // label (latest)
-      const last = data[data.length - 1];
-      const stats = document.getElementById("rankStats");
-      if (stats) {
-        stats.innerHTML = `<b>Latest:</b> #${last.rank} &nbsp; · &nbsp; <b>Best:</b> #${minRank} &nbsp; · &nbsp; <b>Worst:</b> #${maxRank}`;
-      }
-    })();
+    }
 
-  </script>
+    // segmented line: unknown ranks break the line
+    ctx.strokeStyle = "rgba(140,220,180,0.85)";
+    ctx.lineWidth = 2;
+
+    let drawing = false;
+    data.forEach((d, i) => {
+      if (typeof d.rank !== "number" || !Number.isFinite(d.rank)) {
+        if (drawing) {
+          ctx.stroke();
+          drawing = false;
+        }
+        return;
+      }
+
+      const px = x(i);
+      const py = y(scoreFromRank(d.rank));
+
+      if (!drawing) {
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        drawing = true;
+      } else {
+        ctx.lineTo(px, py);
+      }
+
+      const next = data[i + 1];
+      const nextIsGap =
+        !next ||
+        typeof next.rank !== "number" ||
+        !Number.isFinite(next.rank);
+
+      if (nextIsGap) {
+        ctx.stroke();
+        drawing = false;
+      }
+    });
+
+    // points + hover targets
+    const points = [];
+    ctx.fillStyle = "rgba(233,233,239,0.9)";
+    data.forEach((d, i) => {
+      if (typeof d.rank !== "number" || !Number.isFinite(d.rank)) return;
+
+      const px = x(i);
+      const py = y(scoreFromRank(d.rank));
+
+      ctx.beginPath();
+      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      points.push({
+        x: px,
+        y: py,
+        rank: d.rank,
+        run_id: d.run_id
+      });
+    });
+
+    const latestKnown = [...data].reverse().find(
+      d => typeof d.rank === "number" && Number.isFinite(d.rank)
+    );
+
+    const stats = document.getElementById("rankStats");
+    if (stats && latestKnown) {
+      stats.innerHTML =
+        `<b>Latest:</b> #${latestKnown.rank} &nbsp; · &nbsp; ` +
+        `<b>Best:</b> #${minRank} &nbsp; · &nbsp; ` +
+        `<b>Worst:</b> #${maxRank}`;
+    }
+
+    const legend = document.getElementById("rankChartLegend");
+    if (legend) {
+      const gapCount = data.filter(d => d.rank == null).length;
+      legend.textContent = gapCount
+        ? "Unknown-rank runs are included as gaps in the line."
+        : "";
+    }
+
+    // tooltip
+    const tooltip = document.createElement("div");
+    tooltip.style.position = "absolute";
+    tooltip.style.pointerEvents = "none";
+    tooltip.style.background = "rgba(0,0,0,0.78)";
+    tooltip.style.color = "#fff";
+    tooltip.style.padding = "4px 7px";
+    tooltip.style.borderRadius = "6px";
+    tooltip.style.fontSize = "12px";
+    tooltip.style.lineHeight = "1.2";
+    tooltip.style.display = "none";
+    tooltip.style.whiteSpace = "nowrap";
+
+    canvas.parentElement.style.position = "relative";
+    canvas.parentElement.appendChild(tooltip);
+
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left);
+      const my = (e.clientY - rect.top);
+
+      let found = null;
+      const radius = 8;
+
+      for (const p of points) {
+        const dx = p.x - mx;
+        const dy = p.y - my;
+        if ((dx * dx) + (dy * dy) <= radius * radius) {
+          found = p;
+          break;
+        }
+      }
+
+      if (!found) {
+        tooltip.style.display = "none";
+        return;
+      }
+
+      tooltip.style.display = "block";
+      tooltip.textContent = `Rank #${found.rank}`;
+
+      tooltip.style.left = `${found.x + 10}px`;
+      tooltip.style.top = `${found.y +40}px`;
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none";
+    });
+  })();
+</script>
 
   
   <h2 style="margin-top: 18px;">Item completion by hero</h2>

@@ -663,6 +663,29 @@
         }
       });
     }
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+    
+      const el = document.activeElement;
+      if (!el) return;
+    
+      // Let textarea keep normal Enter behavior
+      if (el.tagName === "TEXTAREA") return;
+    
+      // Ignore the item search field
+      if (el.classList.contains("q")) return;
+    
+      // Ignore selects so changing size doesn't trigger Save
+      if (el.tagName === "SELECT") return;
+    
+      const doneBtn = document.getElementById("done-edit-btn");
+      if (!doneBtn) return;
+    
+      e.preventDefault();
+      doneBtn.click();
+    });
+
   </script>
   {% endif %}
 

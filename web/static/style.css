@@ -891,7 +891,14 @@ button.danger:hover {
   text-align: center;
 }
 
-.r-w   { color: #6ee7a8; }              /* 10 wins */
+.r-w   { 
+  color: #16c784;
+  box-shadow: 0 0 2px rgba(22,199,132,0.4);
+  }              /* 10 wins */
+.r-p {
+  color: #6ee7a8; 
+  box-shadow: 0 0 5px rgba(22,199,132,0.4);
+}
 .r-hi  { color: #d7d7df; }              /* 7-9 */
 .r-mid { color: #cd9a5b; }              /* 4-6 */
 .r-low { color: #f87171; }              /* 0-3 / losses */

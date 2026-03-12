@@ -1,179 +1,292 @@
 {% extends "base.html" %}
 {% block content %}
   <div class="manage-page">
-    <div class="manage-header">
-      <h1>Manage</h1>
-      <p class="manage-subtitle">
-        Import, export, maintenance, and data update tools.
-      </p>
+    <div class="manage-hero">
+      <div>
+        <h1>Manage</h1>
+        <p class="manage-subtitle">
+          Backups, imports, maintenance, and local data tools.
+        </p>
+      </div>
+
+      <div class="manage-dir-card">
+        <span class="manage-dir-label">Data directory</span>
+        <code>{{ data_dir }}</code>
+      </div>
     </div>
 
     {% if result %}
-      <div class="manage-toast manage-toast-{{ result.kind }}">
-        <div class="manage-toast-header">
+      <div class="manage-result manage-result-{{ result.kind }}">
+        <div class="manage-result-head">
           <strong>{{ result.title }}</strong>
         </div>
         {% if result.body %}
-          <div class="manage-toast-body">
-            <pre>{{ result.body }}</pre>
-          </div>
+          <pre class="manage-result-body">{{ result.body }}</pre>
         {% endif %}
       </div>
     {% endif %}
 
-    <div class="manage-grid">
 
-      <div class="manage-card">
-        <h3>Data Directory</h3>
-        <code>{{ data_dir }}</code>
+    <details class="manage-section manage-collapsible" open>
+      <summary class="manage-section-head">
+        <div>
+          <h2>Maintenance</h2>
+          <p>Health checks and diagnostics for the local tracker data.</p>
+        </div>
+      </summary>
+    
+      <div class="manage-grid manage-grid-maint">
+        <section class="manage-card manage-card-accent">
+          <div class="manage-card-top">
+            <h3>Doctor</h3>
+          </div>
+          <p class="manage-help">
+            Run a health check on tracker databases, files, and references.
+          </p>
+          <form method="post" action="{{ url_for('manage.manage_doctor') }}">
+            <button type="submit" class="btn-primary">Run doctor</button>
+          </form>
+        </section>
       </div>
-
-      <section class="manage-card">
-        <h2>Export runs</h2>
-        <p class="manage-help">
-          Download a JSON backup of your run history and imported completion data.
-        </p>
-        <form method="post" action="{{ url_for('manage.manage_export') }}">
-          <button type="submit">Download export JSON</button>
-        </form>
-        <form method="post" action="{{ url_for('manage.manage_export_everything') }}">
-            <button type="submit">Export Everything</button>
-            <p class="help-text">
-            Create a full backup zip containing databases, screenshots, item images, and local metadata files.
-            </p>
-        </form>
-      </section>
-
-      <section class="manage-card">
-        <h2>Import runs JSON</h2>
-        <p class="manage-help">
-          Import a previously exported JSON backup into the tracker.
-        </p>
-        <form method="post" action="{{ url_for('manage.manage_import_json') }}" enctype="multipart/form-data">
-          <input type="file" name="file" accept=".json" required>
-          <button type="submit">Import runs JSON</button>
-        </form>
-      </section>
+    </details>
 
 
+    <details class="manage-section manage-collapsible">
+      <summary class="manage-section-head">
+        <div>
+          <h2>Backups</h2>
+          <p>Export your tracker data or restore from a previous backup.</p>
+        </div>
+      </summary>
+    
+      <div class="manage-grid">
+        <section class="manage-card">
+          <div class="manage-card-top">
+            <h3>Export runs JSON</h3>
+          </div>
+          <p class="manage-help">
+            Download a compact JSON backup of run history and imported completion data, if any.
+          </p>
+          <form method="post" action="{{ url_for('manage.manage_export') }}">
+            <button type="submit">Download JSON</button>
+          </form>
+        </section>
 
-      <section class="manage-card">
-        <h2>Import completion CSV</h2>
-        <p class="manage-help">
-          Import checklist progress from the community spreadsheet CSV.
-        </p>
-        <form method="post" action="{{ url_for('manage.manage_import_csv') }}" enctype="multipart/form-data">
-          <input type="file" name="file" accept=".csv" required>
+        <section class="manage-card">
+          <div class="manage-card-top">
+            <h3>Export everything</h3>
+          </div>
+          <p class="manage-help">
+            Create a full backup zip with databases, screenshots, item images, and items metadata.
+          </p>
+          <form method="post" action="{{ url_for('manage.manage_export_everything') }}">
+            <button type="submit">Export everything</button>
+          </form>
+        </section>
 
-          <label class="manage-check">
-            <input type="checkbox" name="replace" value="1">
-            Replace previous imported completion
-          </label>
+        <section class="manage-card">
+          <div class="manage-card-top">
+            <h3>Import runs JSON</h3>
+          </div>
+          <p class="manage-help">
+            Import a previously exported JSON backup into the tracker.
+          </p>
+          <form method="post" action="{{ url_for('manage.manage_import_json') }}" enctype="multipart/form-data" class="manage-form-stack">
+            <input type="file" name="file" accept=".json" required>
+            <button type="submit">Import runs JSON</button>
+          </form>
+          <div class="manage-note">
+            Existing runs are preserved. Imported runs will merge with current data.
+          </div>
+        </section>
+      </div>
+    </details>
 
-          <button type="submit">Import completion CSV</button>
-        </form>
-      </section>
-
-      <section class="manage-card">
-        <h2>Update template database</h2>
-        <p class="manage-help">
-          Import or refresh templates from The Bazaar <code>cards.json</code>.
-        </p>
-        <form method="post" action="{{ url_for('manage.manage_update_templates') }}">
-          <label for="cards_json">cards.json path</label>
-          <input
-            id="cards_json"
-            type="text"
-            name="cards_json"
-            value="{{ default_cards_path or '' }}"
-            placeholder="Path to cards.json"
-            class="manage-input"
-          >
-
-          <label class="manage-check">
-            <input
-              type="checkbox"
-              name="use_default_cards_path"
-              value="1"
-              {% if default_cards_path %}checked{% endif %}
-            >
-            Use default Windows install path
-          </label>
-
-          {% if default_cards_path %}
-            <div class="manage-note">
-              Default path:
-              <code>{{ default_cards_path }}</code>
-            </div>
-          {% else %}
-            <div class="manage-note">
-              No default Windows path available on this system. Enter the path manually.
-            </div>
-          {% endif %}
-
-          <button type="submit">Update templates DB</button>
-        </form>
-      </section>
-
-      <section class="manage-card">
-        <h2>Update item image cache</h2>
-        <p class="manage-help">
-          Download missing item images from BazaarDB and repair broken image paths.
-        </p>
-        <form method="post" action="{{ url_for('manage.manage_cache_images') }}">
-          <div class="manage-inline-grid">
-            <label class="manage-check">
-              <input type="checkbox" name="force" value="1">
-              Force refresh
-            </label>
+    <details class="manage-section manage-collapsible">
+      <summary class="manage-section-head">
+        <div>
+          <h2>Data updates</h2>
+          <p>Refresh content, import checklist progress, and repair missing assets.</p>
+        </div>
+      </summary>
+    
+      <div class="manage-grid">
+        <section class="manage-card">
+          <div class="manage-card-top">
+            <h3>Import completion CSV</h3>
+          </div>
+          <p class="manage-help">
+            Import checklist progress from the community spreadsheet CSV.
+          </p>
+          <form method="post" action="{{ url_for('manage.manage_import_csv') }}" enctype="multipart/form-data" class="manage-form-stack">
+            <input type="file" name="file" accept=".csv" required>
 
             <label class="manage-check">
-              <input type="checkbox" name="insecure" value="1">
-              Insecure TLS
+              <input type="checkbox" name="replace" value="1" checked>
+              Replace previous imported completion
             </label>
+
+            <button type="submit">Import completion CSV</button>
+          </form>
+        </section>
+
+        <section class="manage-card">
+          <div class="manage-card-top">
+            <h3>Update template database</h3>
           </div>
+          <p class="manage-help">
+            Import or refresh templates from The Bazaar <code>cards.json</code>.
+          </p>
+            <form method="post"
+                  action="{{ url_for('manage.manage_update_templates') }}"
+                  class="manage-form-stack"
+                  enctype="multipart/form-data">
+            
+              <label class="manage-check">
+                <input
+                  type="checkbox"
+                  name="use_default_cards_path"
+                  value="1"
+                  checked
+                  id="use_default_cards_path"
+                  onchange="document.getElementById('cards-upload-wrap').hidden = this.checked"
+                >
+                Use default Windows install path
+              </label>
+            
+              {% if default_cards_path %}
+                <div class="manage-note">
+                  Default path:
+                  <code>{{ default_cards_path }}</code>
+                </div>
+              {% else %}
+                <div class="manage-note">
+                  No default Windows path available on this system. Upload <code>cards.json</code> manually.
+                </div>
+              {% endif %}
+            
+              <div id="cards-upload-wrap" hidden>
+                <label for="cards_json_file">cards.json file</label>
+                <input
+                  id="cards_json_file"
+                  type="file"
+                  name="cards_json_file"
+                  accept=".json,application/json"
+                >
+              </div>
+            
+              <button type="submit">Update templates DB</button>
+            </form>
+        </section>
 
-          <div class="manage-inline-grid">
-            <div>
-              <label for="cache_limit">Limit</label>
-              <input id="cache_limit" type="number" name="limit" value="0" min="0" class="manage-input">
-            </div>
-
-            <div>
-              <label for="cache_sleep">Sleep</label>
-              <input id="cache_sleep" type="number" name="sleep" value="0.7" min="0" step="0.1" class="manage-input">
-            </div>
+        <section class="manage-card">
+          <div class="manage-card-top">
+            <h3>Update item images</h3>
           </div>
+          <p class="manage-help">
+            Download missing item images and repair broken image paths.
+          </p>
+        
+          <div class="manage-note">
+            Recommended after updating the template database.
+          </div>
+        
+          <form method="post" action="{{ url_for('manage.manage_cache_images') }}" class="manage-form-stack">
+            <details class="manage-advanced">
+              <summary>Advanced options</summary>
+        
+              <div class="manage-inline-grid">
+                <label class="manage-check">
+                  <input type="checkbox" name="force" value="1">
+                  Force refresh
+                </label>
+        
+                <label class="manage-check">
+                  <input type="checkbox" name="insecure" value="1">
+                  Insecure TLS
+                </label>
+              </div>
+        
+              <div class="manage-inline-grid">
+                <div>
+                  <label for="cache_limit">Limit</label>
+                  <input id="cache_limit" type="number" name="limit" value="0" min="0" class="manage-input">
+                </div>
+        
+                <div>
+                  <label for="cache_sleep">Sleep</label>
+                  <input id="cache_sleep" type="number" name="sleep" value="0.7" min="0" step="0.1" class="manage-input">
+                </div>
+              </div>
+            </details>
+        
+            <button type="submit">Update item images</button>
+          </form>
+        </section>
+      </div>
+    </details>
 
-          <button type="submit">Update item images</button>
-        </form>
-      </section>
 
-      <section class="manage-card">
-        <h2>Doctor</h2>
-        <p class="manage-help">
-          Run a health check on the tracker databases, files, and references.
-        </p>
-        <form method="post" action="{{ url_for('manage.manage_doctor') }}">
-          <button type="submit">Run doctor</button>
-        </form>
-      </section>
-    </div>
   </div>
 
   <style>
     .manage-page {
-      max-width: 1100px;
+      max-width: 1120px;
       margin: 0 auto;
     }
 
-    .manage-header {
+    .manage-hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
       margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .manage-hero h1 {
+      margin-bottom: 0.2rem;
     }
 
     .manage-subtitle {
-      margin-top: 0.25rem;
+      margin: 0;
       opacity: 0.8;
+    }
+
+    .manage-dir-card {
+      min-width: 280px;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .manage-dir-label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+      opacity: 0.75;
+    }
+
+    .manage-dir-card code {
+      word-break: break-word;
+    }
+
+    .manage-section {
+      margin-top: 1.4rem;
+    }
+
+    .manage-section-head {
+      margin-bottom: 0.8rem;
+    }
+
+    .manage-section-head h2 {
+      margin-bottom: 0.2rem;
+    }
+
+    .manage-section-head p {
+      margin: 0;
+      opacity: 0.78;
     }
 
     .manage-grid {
@@ -182,83 +295,243 @@
       gap: 1rem;
     }
 
-    .manage-card {
-      padding: 1rem;
-      border: 1px solid var(--border-color, #ddd);
-      border-radius: 12px;
+    .manage-grid-maint {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 420px));
     }
 
-    .manage-card h2 {
-      margin-top: 0;
+    .manage-card {
+      padding: 1rem 1rem 1.05rem;
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.03);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+
+    .manage-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
       margin-bottom: 0.5rem;
-      font-size: 1.1rem;
+    }
+
+    .manage-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
     }
 
     .manage-help {
       margin-top: 0;
       margin-bottom: 0.9rem;
-      opacity: 0.85;
-      line-height: 1.4;
+      opacity: 0.86;
+      line-height: 1.45;
+    }
+
+    .manage-form-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
     }
 
     .manage-input {
       width: 100%;
       box-sizing: border-box;
-      margin-bottom: 0.75rem;
     }
 
     .manage-check {
       display: block;
-      margin-bottom: 0.75rem;
     }
 
     .manage-inline-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.75rem;
-      margin-bottom: 0.75rem;
     }
 
     .manage-note {
-      margin-bottom: 0.75rem;
-      font-size: 0.95rem;
-      opacity: 0.85;
+      font-size: 0.94rem;
+      opacity: 0.82;
       line-height: 1.4;
     }
 
-    .manage-toast {
+    .manage-badge {
+      white-space: nowrap;
+      font-size: 0.8rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-color, #ddd);
+      opacity: 0.9;
+    }
+
+    .manage-badge-warn {
+      border-color: #d97706;
+    }
+
+    .manage-result {
       margin-bottom: 1rem;
-      padding: 0.9rem 1rem;
-      border-radius: 10px;
+      padding: 0.95rem 1rem;
+      border-radius: 14px;
       border: 1px solid;
     }
 
-    .manage-toast-success {
+    .manage-result-success {
       border-color: #86efac;
       color: #14532d;
     }
 
-    .manage-toast-info {
+    .manage-result-info {
       border-color: #93c5fd;
       color: #1e3a8a;
     }
 
-    .manage-toast-error {
+    .manage-result-error {
       border-color: #fca5a5;
       color: #7f1d1d;
     }
 
-    .manage-toast-header {
-      margin-bottom: 0.5rem;
+    .manage-result-head {
+      margin-bottom: 0.45rem;
     }
 
-    .manage-toast-body pre {
+    .manage-result-body {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
       font-family: inherit;
       font-size: 0.95rem;
       line-height: 1.45;
+    }
+
+    .manage-card form {
+      margin-top: 0.2rem;
+    }
+    
+    .manage-card code {
+      font-size: 0.92em;
+    }
+
+    .manage-card form button {
+      margin-top: 4px;
+    }
+    
+    .manage-card input[type="file"] {
+      font-size: 0.95rem;
+    }
+
+    .manage-input {
+      font-family: monospace;
+    }
+
+    .manage-section {
+      margin-top: 1.5rem;
+    }
+    
+    .manage-section-head h2 {
+      margin: 0 0 0.2rem 0;
+    }
+    
+    .manage-section-head p {
+      margin: 0;
+      opacity: 0.72;
+      font-size: 0.95rem;
+    }
+
+    .manage-card-accent {
+      border-color: rgba(34, 197, 94, 0.35);
+      background: rgba(34, 197, 94, 0.04);
+    }
+
+    .manage-result {
+      margin-bottom: 1rem;
+      padding: 1rem 1rem;
+      border-radius: 16px;
+      border: 1px solid;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .manage-result-body {
+      margin: 0;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: inherit;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    #cards-upload-wrap {
+      padding: 0.75rem;
+      border: 1px dashed var(--border-color, #ddd);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+    }
+    
+    .manage-collapsible summary {
+      list-style: none;
+      cursor: pointer;
+    
+      padding: 0.45rem 0.5rem;
+      margin: -0.25rem -0.3rem;
+    
+      border-radius: 12px;
+    
+      /* subtle always-on tint */
+      background: rgba(255,255,255,0.025);
+    
+      transition: background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .manage-collapsible summary::-webkit-details-marker {
+      display: none;
+    }
+    
+    .manage-collapsible .manage-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      user-select: none;
+    }
+    
+    .manage-collapsible .manage-section-head::after {
+      content: "Show";
+      font-size: 0.85rem;
+      opacity: 0.7;
+      border: 1px solid var(--border-color, #ddd);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    
+    .manage-collapsible[open] .manage-section-head::after {
+      content: "Hide";
+    }
+    
+    .manage-collapsible > .manage-grid {
+      margin-top: 0.9rem;
+    }
+
+    .manage-collapsible summary:hover {
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+    }
+
+    .manage-section:first-of-type {
+      margin-top: 0.5rem;
+    }
+
+    .manage-section {
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 16px;
+      padding: 0.8rem 1rem 1rem;
+      background: rgba(255,255,255,0.02);
+      margin-top: 1rem;
+    }
+
+    @media (max-width: 720px) {
+      .manage-inline-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 {% endblock %}

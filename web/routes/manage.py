@@ -37,6 +37,16 @@ def manage():
 def manage_export():
     try:
         path, download_name, result = export_runs_temp()
+
+        @after_this_request
+        def cleanup_temp_file(response):
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
+            return response
+
         session["manage_result"] = {
             "kind": "success",
             "title": "Export completed",
@@ -189,21 +199,38 @@ def manage_import_csv():
 
 @manage_bp.post("/manage/update-templates")
 def manage_update_templates():
+    import os
+    import tempfile
+
     use_default = request.form.get("use_default_cards_path") == "1"
-    cards_json = (request.form.get("cards_json") or "").strip()
 
-    if use_default and default_cards_path():
-        cards_json = default_cards_path()
-
-    if not cards_json:
-        session["manage_result"] = {
-            "kind": "error",
-            "title": "Missing cards.json path",
-            "body": "cards.json path is required.",
-        }
-        return redirect(url_for("manage.manage"))
-
+    temp_upload_path = None
     try:
+        if use_default:
+            cards_json = default_cards_path() or ""
+            if not cards_json:
+                session["manage_result"] = {
+                    "kind": "error",
+                    "title": "Default cards.json path unavailable",
+                    "body": "No default Windows install path is available on this system.",
+                }
+                return redirect(url_for("manage.manage"))
+        else:
+            file = request.files.get("cards_json_file")
+            if not file or not file.filename:
+                session["manage_result"] = {
+                    "kind": "error",
+                    "title": "Missing cards.json file",
+                    "body": "Please upload a cards.json file.",
+                }
+                return redirect(url_for("manage.manage"))
+
+            suffix = os.path.splitext(file.filename or "")[1] or ".json"
+            fd, temp_upload_path = tempfile.mkstemp(prefix="bazaar_cards_", suffix=suffix)
+            os.close(fd)
+            file.save(temp_upload_path)
+            cards_json = temp_upload_path
+
         result = update_templates(cards_json)
         session["manage_result"] = {
             "kind": "success",
@@ -214,12 +241,20 @@ def manage_update_templates():
                 f"templates_skipped: {result.get('templates_skipped', 0)}"
             ),
         }
+
     except Exception as e:
         session["manage_result"] = {
             "kind": "error",
             "title": "Template import failed",
             "body": str(e),
         }
+    finally:
+        if temp_upload_path:
+            try:
+                if os.path.exists(temp_upload_path):
+                    os.remove(temp_upload_path)
+            except Exception:
+                pass
 
     return redirect(url_for("manage.manage"))
 

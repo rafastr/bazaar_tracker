@@ -112,11 +112,27 @@ def build_index_context(
     def recent_result_token(r: dict) -> dict:
         wins = r.get("wins")
         won = r.get("won")
+        prestige = r.get("prestige")
         run_id = r.get("run_id")
+    
+        try:
+            prestige_val = int(prestige) if prestige not in (None, "") else None
+        except (TypeError, ValueError):
+            prestige_val = None
+    
+        is_perfect = (
+            won in (True, 1, "1")
+            and prestige_val is not None
+            and prestige_val >= 25
+        )
     
         if wins is not None:
             try:
                 w = int(wins)
+    
+                if is_perfect:
+                    return {"ch": "P", "cls": "r-p", "run_id": run_id}
+    
                 if w >= 10:
                     return {"ch": "W", "cls": "r-w", "run_id": run_id}
                 if w >= 7:
@@ -126,6 +142,9 @@ def build_index_context(
                 return {"ch": str(w), "cls": "r-low", "run_id": run_id}
             except (TypeError, ValueError):
                 pass
+    
+        if is_perfect:
+            return {"ch": "P", "cls": "r-p", "run_id": run_id}
     
         if won in (True, 1, "1"):
             return {"ch": "W", "cls": "r-w", "run_id": run_id}
@@ -311,28 +330,39 @@ def build_index_context(
             "best_win_streak": season_best_win,
             }
 
-    rank_series_data = rank_series(cur)
+    # Build rank series from the same filtered run list so unknown ranks are preserved
+    # as gaps in the graph instead of being dropped.
+    rank_series_data: list[dict[str, Any]] = []
+    for r in runs_filtered[-150:]:
+        rank_eff = r.get("rank_effective")
+        if rank_eff is None:
+            rank_eff = r.get("rank")
+
+        try:
+            rank_val = int(rank_eff) if rank_eff is not None else None
+        except (TypeError, ValueError):
+            rank_val = None
+
+        rank_series_data.append(
+            {
+                "run_id": r.get("run_id"),
+                "rank": rank_val,
+            }
+        )
+
+    latest_run = runs_filtered[0] if runs_filtered else None
     
-    if season_selected == "__NONE__":
-        run_ids_with_no_season = {
-            r["run_id"] for r in runs_filtered if r.get("season_id") is None
-        }
-        rank_series_data = [
-            x for x in rank_series_data
-            if x["run_id"] in run_ids_with_no_season
-        ]
-    elif season_selected != "":
-        run_ids_for_season = {
-            r["run_id"] for r in runs_filtered
-        }
-        rank_series_data = [
-            x for x in rank_series_data
-            if x["run_id"] in run_ids_for_season
-        ]
+    if latest_run:
+        rank_val = latest_run.get("rank_effective")
+        if rank_val is None:
+            rank_val = latest_run.get("rank")
     
-    rank_series_data = rank_series_data[-150:]
-    
-    current_rank = rank_series_data[-1]["rank"] if rank_series_data else None
+        try:
+            current_rank = int(rank_val) if rank_val is not None else None
+        except (TypeError, ValueError):
+            current_rank = None
+    else:
+        current_rank = None
 
     perfect_runs_hero = perfect_runs_by_hero(cur)  # optional to display later
 
