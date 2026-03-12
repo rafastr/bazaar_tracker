@@ -16,6 +16,7 @@ from web.routes.items import items_bp
 from web.routes.main import main_bp
 from web.routes.manage import manage_bp
 from web.routes.runs import runs_bp
+from core.config import APP_NAME, APP_VERSION
 
 
 def create_app() -> Flask:
@@ -46,7 +47,16 @@ def create_app() -> Flask:
             return ""
 
     @app.context_processor
+    def inject_app_meta():
+        return {
+            "app_name": APP_NAME,
+            "app_version": APP_VERSION,
+        }
+    
+    @app.context_processor
     def inject_hero_colors():
-        return {"hero_colors": get_hero_colors_map()}
+        return {
+            "hero_colors": get_hero_colors_map(),
+        }
 
     return app

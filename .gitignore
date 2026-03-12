@@ -4,5 +4,7 @@ __pycache__/
 *.pyc
 screenshots/
 assets/
+debut/
 ocr_debug/
 db/
+resources/*

@@ -33,6 +33,15 @@ def manage():
     )
 
 
+# ---------- Help / About ----------
+
+@manage_bp.get("/help")
+def help_page():
+    return render_template("help.html")
+
+
+
+
 @manage_bp.post("/manage/export")
 def manage_export():
     try:

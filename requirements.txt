@@ -1,6 +1,6 @@
-mss==10.1.0
-Pillow==12.1.1
-watchdog==6.0.0
+mss
+Pillow
+watchdog
 Flask
 requests
 pytesseract

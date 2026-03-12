@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="help-page">
+    <div class="help-hero">
+      <div>
+        <h1>Help</h1>
+        <p class="help-subtitle">
+          How to use {{ app_name }} and manage your local tracker data.
+        </p>
+      </div>
+    </div>
+
+    <section class="help-card">
+      <h2>About</h2>
+      <p>
+        {{ app_name }} is a local run tracker for The Bazaar.
+        It records runs, tracks achievements, and stores data locally on your computer.
+      </p>
+      <p>
+      <strong>The tracker need to be running while you play</strong> for automatic import of the runs.
+      </p>
+      <p>
+      <strong>Runs need to be marked as verified.</strong> Confirm that that the data is correct and mark the runs as verified.
+      </p>
+    </section>
+
+    <section class="help-card">
+      <h2>Known Limitations</h2>
+      <ul>
+        <li>Only works on windows, with steam game installation.</li>
+        <li>Needs to play the game in 1920x1080 resolution.</li>
+        <li>Spawned items(from other items, or events) are not automaticcally recorded in the run.</li>
+        <li>A run with 10 wins and at least 25 prestige counts as a perfect run.</li>
+      </ul>
+    </section>
+
+    <section class="help-card">
+      <h2>First setup</h2>
+      <ol>
+        <li>Open the <strong>Manage</strong> page.</li>
+        <li>Update the template database from the game’s <code>cards.json</code>.</li>
+        <li>Update item images. It's normal for it to take a long time to get all images.</li>
+        <li>Optionally import checklist progress from CSV.</li>
+      </ol>
+    </section>
+
+    <section class="help-card">
+      <h2>Recording runs</h2>
+      <p>Runs can be added in different ways:</p>
+      <ul>
+        <li>automatic import from logs</li>
+        <li>manual creation</li>
+        <li>screenshot-based OCR</li>
+      </ul>
+      <p>
+        Any run can be edited later.
+      </p>
+    </section>
+
+    <section class="help-card">
+      <h2>Achievements</h2>
+      <p>
+        Achievements unlock automatically based on your run history.
+      </p>
+      <p>
+        They are rebuilt from stored data, so progress stays consistent even after edits.
+      </p>
+    </section>
+
+    <section class="help-card">
+      <h2>Board and item data</h2>
+      <p>
+        Item templates are imported from the game’s <code>cards.json</code>.
+      </p>
+      <p>
+        Item images can be downloaded and cached locally from the <strong>Manage</strong> page.
+      </p>
+    </section>
+
+    <section class="help-card">
+      <h2>Backups</h2>
+      <p>
+        Use the <strong>Manage</strong> page to:
+      </p>
+      <ul>
+        <li>export runs as JSON</li>
+        <li>export a full backup</li>
+        <li>import a previous backup</li>
+      </ul>
+    </section>
+
+    <section class="help-card">
+      <h2>Data location</h2>
+      <p>
+        All tracker data is stored locally.
+      </p>
+      <p>
+        You can check the current data directory on the <strong>Manage</strong> page.
+      </p>
+    </section>
+
+    <section class="help-card">
+      <h2>Troubleshooting</h2>
+      <p>
+        If something looks wrong, open the <strong>Manage</strong> page and run <strong>Doctor</strong>.
+      </p>
+      <p>
+        That helps check local tracker files and database consistency.
+      </p>
+    </section>
+
+    <section class="help-card">
+      <h2>Disclaimer</h2>
+      <p>
+        {{ app_name }} is a community tool and is not affiliated with Tempo Storm.
+      </p>
+    </section>
+  </div>
+
+  <style>
+    .help-page {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .help-hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .help-hero h1 {
+      margin-bottom: 0.2rem;
+    }
+
+    .help-subtitle {
+      margin: 0;
+      opacity: 0.8;
+    }
+
+    .help-card {
+      margin-top: 1rem;
+      padding: 1rem 1rem 1.05rem;
+      border: 1px solid var(--border-color, #ddd);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.02);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+
+    .help-card h2 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-size: 1.05rem;
+    }
+
+    .help-card p:last-child,
+    .help-card ul:last-child,
+    .help-card ol:last-child {
+      margin-bottom: 0;
+    }
+
+    .help-card ul,
+    .help-card ol {
+      padding-left: 1.2rem;
+    }
+
+    .help-card li + li {
+      margin-top: 0.2rem;
+    }
+  </style>
+{% endblock %}

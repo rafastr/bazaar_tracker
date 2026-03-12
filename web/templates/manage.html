@@ -47,6 +47,18 @@
             <button type="submit" class="btn-primary">Run doctor</button>
           </form>
         </section>
+
+      <section class="manage-card">
+        <div class="manage-card-top">
+          <h3>Help</h3>
+        </div>
+        <p class="manage-help">
+          Open the help page for setup instructions, explanations, and troubleshooting tips.
+        </p>
+        <form method="get" action="{{ url_for('manage.help_page') }}">
+          <button type="submit">Open help</button>
+        </form>
+      </section>
       </div>
     </details>
 

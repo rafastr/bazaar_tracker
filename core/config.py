@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import List, Optional
 
 
-APP_NAME = "BazaarChronicles"
+APP_NAME = "Bazaar Chronicles"
+APP_VERSION = "0.8.0"
 
 
 def _ensure_dir(path: Path) -> Path:

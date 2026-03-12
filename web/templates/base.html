@@ -14,6 +14,7 @@
           <a href="{{ url_for('runs.runs_view') }}">Runs</a>
           <a href="{{ url_for('runs.run_latest') }}">Last-run</a>
           <a href="{{ url_for('manage.manage') }}">Manage</a>
+          <a href="{{ url_for('manage.help_page') }}">Help</a>
           <a href="{{ url_for('items.items_view') }}">Items</a>
           <a href="{{ url_for('heroes.heroes_index') }}">Heroes</a>
           <a href="{{ url_for('achievements.achievements_view') }}">Achievements</a>
@@ -32,8 +33,14 @@
         {% endif %}
       {% endwith %}
 
+
       {% block content %}{% endblock %}
 
+      <footer class="app-footer">
+          <span>{{ app_name }} v{{ app_version }}</span>
+      </footer>
+
     </div>
+
   </body>
 </html>

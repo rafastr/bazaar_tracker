@@ -108,6 +108,7 @@ Bazaar Tracker focuses on:
 
 ### Next things to build
 - Computer vision to read items that are not detected in the player log.
+- Import item images directly from game files.
 
 ## License
 MIT License
