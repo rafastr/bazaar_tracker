@@ -19,7 +19,7 @@ from core.config import settings
 
 
 # Identify ourselves politely; keep requests rate-limited with --sleep
-UA = "BazaarTracker/0.1 (local image cache builder; respectful scraping)"
+UA = "BazaarChronicle/0.1 (local image cache builder; respectful scraping)"
 
 CARD_CANON_RE = re.compile(
     r'(/card/[^/"<>\s]+/[^"<>\s]+)',

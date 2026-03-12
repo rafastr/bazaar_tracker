@@ -9,3 +9,5 @@ ocr_debug/
 db/
 resources/*
 !resources/.keep
+dist/
+build/

@@ -1,6 +1,6 @@
-# Bazaar Chronicles
+# Bazaar Chronicle
 
-Bazaar Chronicles is a local run tracker for **The Bazaar** that records your runs, analyzes performance, and tracks achievements and item mastery.
+Bazaar Chronicle is a local run tracker for **The Bazaar** that records your runs, analyzes performance, and tracks achievements and item mastery.
 
 The application runs locally on your machine and stores all data in a SQLite database. No external services are required.
 
@@ -63,8 +63,8 @@ Achievements
 ### Clone repository
 
 ```bash
-git clone https://github.com/YOURNAME/bazaar-tracker.git
-cd bazaar-tracker
+git clone https://github.com/rafastr/bazaar-chronicle
+cd bazaar-chronicle
 ```
 
 Install dependencies

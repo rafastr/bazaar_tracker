@@ -109,7 +109,7 @@ BASE_TABLES = (
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Import Bazaar Tracker runs from JSON export")
+    p = argparse.ArgumentParser(description="Import Bazaar Chronicle runs from JSON export")
     p.add_argument("in_json", help="Input JSON export path")
     p.add_argument(
         "--db",

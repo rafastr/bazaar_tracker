@@ -10,7 +10,7 @@ from core.db_utils import connect_db
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Check Bazaar Tracker database health")
+    p = argparse.ArgumentParser(description="Check Bazaar Chronicle database health")
     p.add_argument(
         "--db",
         dest="db_path",
@@ -226,7 +226,7 @@ def main() -> None:
         templates_db_path=args.templates_db_path,
     )
 
-    print("\nBazaar Tracker doctor\n")
+    print("\nBazaar Chronicle doctor\n")
 
     if result["problems"]:
         print("Problems found:")

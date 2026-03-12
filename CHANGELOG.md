@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Bazaar Tracker will be documented in this file.
+All notable changes to Bazaar Chronicle will be documented in this file.
 
 ## [0.8.0] - 2026
 
@@ -18,7 +18,7 @@ First public release.
 
 
 For next Versions
-## [1.1.0]
+## [x.x.x]
 
 ### Added
 - ...

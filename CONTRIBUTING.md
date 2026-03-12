@@ -18,7 +18,7 @@ Please open an issue to discuss the idea.
 
 Clone the repository:
 
-git clone https://github.com/YOURNAME/bazaar-tracker.git
+git clone https://github.com/rafastr/bazaar-chronicle
 
 Install dependencies:
 
