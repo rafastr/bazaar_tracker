@@ -31,12 +31,14 @@ Track progress toward:
 
 - Using every item in a win
 - Using item with other heroes in a win
+- Ability to import your manual tem checklist from a csv.
 
 ### Fully local
 - SQLite database
 - Local image cache
 - No external accounts required
 - Works offline
+- Export/import your data
 
 ---
 
@@ -63,17 +65,53 @@ Achievements
 ```bash
 git clone https://github.com/YOURNAME/bazaar-tracker.git
 cd bazaar-tracker
+```
 
 Install dependencies
 
+```bash
 pip install -r requirements.txt
-
-Run the application
-python -m web.app
-
-Open in browser:
-
-http://127.0.0.1:5000
 ```
 
+Run the application
 
+
+## Running the application
+```bash
+python -m web.app
+
+```
+Open in browser:
+http://127.0.0.1:5000
+
+## First setup
+
+## Updating templates
+
+## Backups
+The Manage page allows:
+
+Export run history
+Export full tracker backup
+Import JSON backups
+
+## Data location
+All data is stored locally in:
+%APPDATA%\BazaarChronicles
+
+## Project Goals
+Bazaar Tracker focuses on:
+- deterministic rebuildable stats
+- local-first data ownership
+- achievement-based progression tracking
+- clean and fast UI
+
+### Next things to build
+- Computer vision to read items that are not detected in the player log.
+
+## License
+MIT License
+
+## Credits
+The Bazaar is developed by Tempo Storm.
+Bazaar Tracker is a community tool and is not affiliated with Tempo Storm.
