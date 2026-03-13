@@ -1,17 +1,21 @@
 # Bazaar Chronicle
+Local run tracker and achievement system for The Bazaar.
 
-Bazaar Chronicle is a local run tracker for **The Bazaar** that records your runs, analyzes performance, and tracks achievements and item mastery.
-
-The application runs locally on your machine and stores all data in a SQLite database. No external services are required.
+Bazaar Chronicle is a local run tracker for **The Bazaar**.
+It records your runs, analyzes performance, and tracks achievements and item mastery.
+The application runs locally on your machine as a small web app and opens in your browser.
+- No accounts
+- No cloud services
+- All data stays on your computer.
 
 ---
 
 ## Features
 
 ### Run tracking
-- Record runs automatically from game logs
-- Saves screenshots when run ends
-- Manually add or edit runs
+- Automatic run detection from game logs
+- Screenshot capture at run end
+- Manual run creation and editing
 - OCR support for extracting run data
 
 ### Board tracking
@@ -24,26 +28,24 @@ The application runs locally on your machine and stores all data in a SQLite dat
 - Hero performance stats
 
 ### Achievements
-- Collection of achievements
+- Achievement system based on run performance
+- 25+ achievements to unlock
 
 ### Item mastery
 Track progress toward:
-
-- Using every item in a win
-- Using item with other heroes in a win
-- Ability to import your manual tem checklist from a csv.
+- Using every item in a winning run
+- Using items with different heroes in a winning run
+- Import item checklist from external CSV
 
 ### Fully local
 - SQLite database
 - Local image cache
-- No external accounts required
 - Works offline
 - Export/import your data
 
 ---
 
 ## Screenshots
-
 *(Add screenshots here later)*
 
 Dashboard  
@@ -53,66 +55,66 @@ Achievements
 
 ---
 
-## Installation
+## Download and Run
+Download the latest release from GitHub Releases.
 
-### Requirements
+Extract the archive and run:
+`BazaarChronicle.exe`
 
-- Python 3.11+
-- pip
-
-### Clone repository
-
-```bash
-git clone https://github.com/rafastr/bazaar-chronicle
-cd bazaar-chronicle
-```
-
-Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-Run the application
-
-
-## Running the application
-```bash
-python -m web.app
-
-```
-Open in browser:
-http://127.0.0.1:5000
-
-## First setup
-
-## Updating templates
+Your browser will open automatically.
+No installation required.
+The tracker must be running while you play in order to record runs.
 
 ## Backups
-The Manage page allows:
+Backups can be created from the Manage page.
 
-Export run history
-Export full tracker backup
-Import JSON backups
+Available options:
+- Export run history
+- Export full tracker backup
+- Import JSON backups
 
 ## Data location
 All data is stored locally in:
-%APPDATA%\BazaarChronicles
+`%APPDATA%\Bazaar Chronicle`
 
-## Project Goals
-Bazaar Chronicles focuses on:
-- deterministic rebuildable stats
-- local-first data ownership
-- achievement-based progression tracking
-- clean and fast UI
+This folder contains:
+```
+run_history.sqlite3
+templates.sqlite3
+assets/images/items
+screenshots
+logs
+exports
+```
+You can back up your data by copying this folder.
 
-### Next things to build
-- Computer vision to read items that are not detected in the player log.
-- Import item images directly from game files.
+### Import checklists from csv
+- If you track your item completion in spreadsheet (for example the [PunNoFun](https://docs.google.com/spreadsheets/d/1ceJfc_7-J3tlwHwyo7V2XJ39TONwBMDBA_kPJR5hPjM/edit?gid=0#gid=0) spreadsheet), you can import it into Bazaar Chronicle. 
+Export the spreadsheet to CSV, then import it using the Manage page.
+
+## Development
+Requirements:
+`Python 3.11+`
+
+Install dependencies:
+`pip install -r requirements.txt`
+
+Run the tracker:
+`python bazaar_chronicle.py`
+
+Build the executable:
+`pyinstaller BazaarChronicle.spec`
+
+## Next things to build
+- Computer vision for detecting items not present in logs
+- Importing item images directly from game files
+- Mac support
+- Integration with the Tempo launcher
 
 ## License
 MIT License
 
 ## Credits
 The Bazaar is developed by Tempo Storm.
-Bazaar Chronicles is a community tool and is not affiliated with Tempo Storm.
+
+Bazaar Chronicle is a community tool and is not affiliated with Tempo Storm.
