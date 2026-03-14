@@ -9,23 +9,20 @@ from .events import Event
 from core.config import settings
 
 
-_toaster = None
-
 def _notify_screenshot_taken() -> None:
-    global _toaster
     try:
-        if _toaster is None:
-            from win10toast import ToastNotifier
-            _toaster = ToastNotifier()
+        from win11toast import toast
 
-        _toaster.show_toast(
+        toast(
             "Bazaar Chronicle",
-            "Final board screenshot captured.",
-            duration=3,
-            threaded=True,
+            "Final board captured. You can continue now.",
+            duration="short",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        print(json.dumps(
+            {"type": "NotificationError", "error": repr(e)},
+            ensure_ascii=False
+        ))
 
 
 class Sink:

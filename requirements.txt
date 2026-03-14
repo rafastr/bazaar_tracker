@@ -8,4 +8,4 @@ opencv-python
 numpy
 certifi
 python-dotenv
-win10toast
+win11toast

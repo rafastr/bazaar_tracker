@@ -52,27 +52,31 @@ class LogParser:
 
     def __init__(self):
         self._last_seen_season = None
+        self._allow_hero_detection = True
 
     def parse_line(self, line: str) -> Optional[Event]:
         raw = line
 
         if self.RUN_START_MARKER in line:
+            self._allow_hero_detection = False
             return Event(type="RunStart", raw=raw)
 
-        m = self.HERO_LINE_RE.search(line)
-        if m:
-            hero = m.group("hero").strip()
-            return Event(type="HeroDetected", raw=raw, hero=hero)
+        # Hero detection
+        if self._allow_hero_detection:
+            m = self.HERO_LINE_RE.search(line)
+            if m:
+                hero = m.group("hero").strip()
+                return Event(type="HeroDetected", raw=raw, hero=hero)
 
-        m = self.HERO_CHANGE_RE.search(line)
-        if m:
-            hero = m.group("hero").strip()
-            return Event(type="HeroDetected", raw=raw, hero=hero)
+            m = self.HERO_CHANGE_RE.search(line)
+            if m:
+                hero = m.group("hero").strip()
+                return Event(type="HeroDetected", raw=raw, hero=hero)
 
-        m = self.HERO_VO_RE.search(line)
-        if m:
-            hero = m.group("hero").strip()
-            return Event(type="HeroDetected", raw=raw, hero=hero)
+            m = self.HERO_VO_RE.search(line)
+            if m:
+                hero = m.group("hero").strip()
+                return Event(type="HeroDetected", raw=raw, hero=hero)
 
         # Season parser
         m = self.SEASON_ID_QS_RE.search(line)
@@ -87,6 +91,7 @@ class LogParser:
             return Event(type="RankUpdated", raw=raw, rank=int(m.group("rank")))
         
         if self.RUN_END_MARKER in line:
+            self._allow_hero_detection = True
             return Event(type="RunEnd", raw=raw)
 
         # Item purchases only (itm_*)
