@@ -161,6 +161,75 @@ def _try_read_wins_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
     }
 
 
+def _parse_oneish_int(s: str) -> int | None:
+    """
+    Final fallback for values like 1 / 11 where OCR sees only thin vertical strokes.
+    Examples:
+      "1"  -> 1
+      "I"  -> 1
+      "|"  -> 1
+      "ll" -> 11
+      "||" -> 11
+      "I1" -> 11
+    """
+    s = (s or "").strip()
+    if not s:
+        return None
+
+    compact = re.sub(r"\s+", "", s)
+    if not compact:
+        return None
+
+    if all(ch in {"1", "I", "l", "|"} for ch in compact):
+        return int("1" * len(compact))
+
+    return None
+
+
+def _try_read_oneish_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
+    """
+    Specialized fallback for thin values like 1 / 11 in the smaller metadata fields.
+    """
+    attempts: list[dict] = []
+
+    isolated, iso_dbg = _digit_crop_from_components(pil_crop)
+    variants = [
+        ("orig", pil_crop),
+        ("isolated", isolated),
+    ]
+
+    for label, img in variants:
+        prep = _prep_for_single_digit(img, scale=8)
+
+        for psm in (7, 8, 10):
+            raw = pytesseract.image_to_string(
+                prep,
+                config="--oem 1 --psm %d -c tessedit_char_whitelist=1Il|" % psm,
+            ).strip()
+
+            val = _parse_oneish_int(raw)
+            row = {
+                "mode": label,
+                "psm": psm,
+                "raw": raw,
+                "value": val,
+            }
+            attempts.append(row)
+
+            if val is not None:
+                return val, {
+                    "isolation": iso_dbg,
+                    "best": row,
+                    "attempts": attempts,
+                }
+
+    return None, {
+        "isolation": iso_dbg,
+        "best": None,
+        "attempts": attempts,
+    }
+
+
 def _digit_crop_from_components(pil_crop: Image.Image) -> tuple[Image.Image, dict]:
     """
     Tries to isolate digits by connected-component filtering.
@@ -434,6 +503,17 @@ def extract_run_metrics(
                     "fallback": "wins_specialized",
                     "generic": dbg,
                     "wins_specialized": dbg2,
+                }
+
+        # final fallback for thin "1 / 11" cases in smaller metadata fields
+        if field != "wins" and val is None:
+            val3, dbg3 = _try_read_oneish_int(crop)
+            if val3 is not None:
+                val = val3
+                dbg = {
+                    "fallback": "oneish_specialized",
+                    "generic": dbg,
+                    "oneish_specialized": dbg3,
                 }
 
         # Save isolated digit region too (super useful)

@@ -20,6 +20,10 @@ class LogParser:
         r"Changing EHero to (?P<hero>[A-Za-z][A-Za-z0-9 _'-]*)"
     )
 
+    HERO_VO_RE = re.compile(
+        r"LoadedBank result for VO_(?P<hero>[A-Za-z][A-Za-z0-9_]*)"
+    )
+
     RANK_LINE_RE = re.compile(r"Changing leaderboard position from \d+ to (?P<rank>\d+)")
 
     SEASON_ID_QS_RE = re.compile(r"[?&]seasonId=(?P<season>\d+)")
@@ -65,6 +69,10 @@ class LogParser:
             hero = m.group("hero").strip()
             return Event(type="HeroDetected", raw=raw, hero=hero)
 
+        m = self.HERO_VO_RE.search(line)
+        if m:
+            hero = m.group("hero").strip()
+            return Event(type="HeroDetected", raw=raw, hero=hero)
 
         # Season parser
         m = self.SEASON_ID_QS_RE.search(line)
