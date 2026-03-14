@@ -68,6 +68,99 @@ def _ocr_digits(pil_img: Image.Image, *, psm: int = 7, oem: int = 3) -> str:
     return pytesseract.image_to_string(pil_img, config=cfg).strip()
 
 
+def _prep_for_single_digit(pil_img: Image.Image, *, scale: int = 6) -> Image.Image:
+    import numpy as np
+    import cv2
+
+    g = np.array(pil_img.convert("L"))
+
+    if scale and scale > 1:
+        g = cv2.resize(
+            g,
+            (g.shape[1] * scale, g.shape[0] * scale),
+            interpolation=cv2.INTER_CUBIC,
+        )
+
+    # no blur, no dilation: keep the shape of a large 0 intact
+    _, bw = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # normalize to black text on white bg
+    if (bw == 255).mean() < 0.5:
+        bw = 255 - bw
+
+    return Image.fromarray(bw)
+
+
+def _parse_single_digit_or_zeroish(s: str) -> int | None:
+    s = (s or "").strip()
+
+    if not s:
+        return None
+
+    # direct digits first
+    m = re.search(r"\d+", s)
+    if m:
+        return int(m.group())
+
+    # common zero confusions for the wins field
+    compact = s.replace(" ", "")
+    if compact in {"O", "o", "D", "Q"}:
+        return 0
+
+    return None
+
+
+def _try_read_wins_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
+    """
+    Specialized fallback for the wins field.
+    Helps when a large single '0' is read as O / blob / unknown.
+    """
+    attempts: list[dict] = []
+
+    # try original crop and isolated crop
+    isolated, iso_dbg = _digit_crop_from_components(pil_crop)
+    variants = [
+        ("orig", pil_crop),
+        ("isolated", isolated),
+    ]
+
+    best_val: int | None = None
+    best_row: dict | None = None
+
+    for label, img in variants:
+        prep = _prep_for_single_digit(img, scale=6)
+
+        for psm in (10, 8, 7):
+            raw = pytesseract.image_to_string(
+                prep,
+                config=f"--oem 1 --psm {psm} -c tessedit_char_whitelist=0123456789OoDQ",
+            ).strip()
+
+            val = _parse_single_digit_or_zeroish(raw)
+            row = {
+                "mode": label,
+                "psm": psm,
+                "raw": raw,
+                "value": val,
+            }
+            attempts.append(row)
+
+            if val is not None:
+                best_val = val
+                best_row = row
+                return best_val, {
+                    "isolation": iso_dbg,
+                    "best": best_row,
+                    "attempts": attempts,
+                }
+
+    return None, {
+        "isolation": iso_dbg,
+        "best": best_row,
+        "attempts": attempts,
+    }
+
+
 def _digit_crop_from_components(pil_crop: Image.Image) -> tuple[Image.Image, dict]:
     """
     Tries to isolate digits by connected-component filtering.
@@ -331,6 +424,17 @@ def extract_run_metrics(
             crop.save(os.path.join(debug_dir, f"{field}_crop.png"))
 
         val, dbg = _try_read_int(crop)
+
+        # wins is special: a large single "0" is sometimes missed by the generic path
+        if field == "wins" and val is None:
+            val2, dbg2 = _try_read_wins_int(crop)
+            if val2 is not None:
+                val = val2
+                dbg = {
+                    "fallback": "wins_specialized",
+                    "generic": dbg,
+                    "wins_specialized": dbg2,
+                }
 
         # Save isolated digit region too (super useful)
         if debug_dir:
