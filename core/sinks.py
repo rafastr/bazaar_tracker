@@ -9,6 +9,25 @@ from .events import Event
 from core.config import settings
 
 
+_toaster = None
+
+def _notify_screenshot_taken() -> None:
+    global _toaster
+    try:
+        if _toaster is None:
+            from win10toast import ToastNotifier
+            _toaster = ToastNotifier()
+
+        _toaster.show_toast(
+            "Bazaar Chronicle",
+            "Final board screenshot captured.",
+            duration=3,
+            threaded=True,
+        )
+    except Exception:
+        pass
+
+
 class Sink:
     def handle(self, ev: Event) -> List[Event]:
         return []
@@ -99,6 +118,9 @@ class ScreenshotSink(Sink):
             filename = f"{prefix}_{ts}.png"
             path = os.path.join(self.out_dir, filename)
             img.save(path)
-
+            
             print(json.dumps({"type": "ScreenshotSaved", "path": path}, ensure_ascii=False))
+            
+            _notify_screenshot_taken()
+            
             return path
