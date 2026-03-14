@@ -2,27 +2,32 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from typing import List, Optional, Set
+
 
 from .events import Event
 from core.config import settings
 
 
 def _notify_screenshot_taken() -> None:
-    try:
-        from win11toast import toast
+    def _worker() -> None:
+        try:
+            from win11toast import toast
 
-        toast(
-            "Bazaar Chronicle",
-            "Final board captured. You can continue now.",
-            duration="short",
-        )
-    except Exception as e:
-        print(json.dumps(
-            {"type": "NotificationError", "error": repr(e)},
-            ensure_ascii=False
-        ))
+            toast(
+                "Bazaar Chronicle",
+                "Final board captured. You can continue now.",
+                duration="short",
+            )
+        except Exception as e:
+            print(json.dumps(
+                {"type": "NotificationError", "error": repr(e)},
+                ensure_ascii=False
+            ))
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 class Sink:
