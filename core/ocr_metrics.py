@@ -166,17 +166,94 @@ def _try_read_wins_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
     }
 
 
-def _parse_oneish_int(s: str) -> int | None:
+def _estimate_digit_count_from_isolated_crop(pil_img: Image.Image) -> int | None:
     """
-    Final fallback for values like 1 / 11 where OCR sees only thin vertical strokes.
-    Examples:
-      "1"  -> 1
-      "I"  -> 1
-      "|"  -> 1
-      "ll" -> 11
-      "||" -> 11
-      "I1" -> 11
+    Estimate whether the isolated crop contains 1 or 2 digits.
+    This is intentionally simple and conservative.
     """
+    import numpy as np
+    import cv2
+
+    gray = np.array(pil_img.convert("L"))
+    _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # normalize so foreground is white
+    if (bw == 255).mean() > 0.6:
+        fg = 255 - bw
+    else:
+        fg = bw
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=8)
+    H, W = fg.shape[:2]
+
+    comps = []
+    for i in range(1, num_labels):
+        x, y, w, h, area = stats[i]
+        if area < 8:
+            continue
+        if h < H * 0.45:
+            continue
+        if w < 2:
+            continue
+        comps.append((x, y, w, h, area))
+
+    if not comps:
+        return None
+
+    # sort left to right
+    comps.sort(key=lambda c: c[0])
+
+    # merge very close components (for broken strokes within one digit)
+    merged = []
+    for c in comps:
+        if not merged:
+            merged.append(list(c))
+            continue
+
+        prev = merged[-1]
+        prev_x, prev_y, prev_w, prev_h, prev_a = prev
+        x, y, w, h, a = c
+
+        gap = x - (prev_x + prev_w)
+        if gap <= max(1, int(W * 0.02)):
+            # merge
+            x1 = min(prev_x, x)
+            y1 = min(prev_y, y)
+            x2 = max(prev_x + prev_w, x + w)
+            y2 = max(prev_y + prev_h, y + h)
+            merged[-1] = [x1, y1, x2 - x1, y2 - y1, prev_a + a]
+        else:
+            merged.append(list(c))
+
+    # We mainly care about distinguishing 1 vs 2.
+    count = len(merged)
+
+    if count <= 0:
+        return None
+    if count == 1:
+        return 1
+    if count == 2:
+        return 2
+
+    # if noisy, clamp to 2 because your metadata fields are short numbers
+    return 2
+
+
+def _parse_int_with_expected_len(s: str, expected_len: int | None) -> int | None:
+    val = _parse_int(s)
+    if val is None:
+        return None
+
+    if expected_len is None:
+        return val
+
+    if len(str(val)) != expected_len:
+        return None
+
+    return val
+
+
+def _parse_oneish_int(s: str, expected_digits: int | None = None) -> int | None:
     s = (s or "").strip()
     if not s:
         return None
@@ -186,6 +263,8 @@ def _parse_oneish_int(s: str) -> int | None:
         return None
 
     if all(ch in {"1", "I", "l", "|"} for ch in compact):
+        if expected_digits is not None:
+            return int("1" * expected_digits)
         return int("1" * len(compact))
 
     return None
@@ -198,9 +277,12 @@ def _try_read_oneish_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
     attempts: list[dict] = []
 
     isolated, iso_dbg = _digit_crop_from_components(pil_crop)
+    expected_digits = _estimate_digit_count_from_isolated_crop(isolated)
+
+
     variants = [
-        ("orig", pil_crop),
         ("isolated", isolated),
+        ("orig", pil_crop),
     ]
 
     for label, img in variants:
@@ -212,7 +294,7 @@ def _try_read_oneish_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
                 config="--oem 1 --psm %d -c tessedit_char_whitelist=1Il|" % psm,
             ).strip()
 
-            val = _parse_oneish_int(raw)
+            val = _parse_oneish_int(raw, expected_digits=expected_digits)
             row = {
                 "mode": label,
                 "psm": psm,
@@ -364,6 +446,7 @@ def _try_read_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
     attempts: list[dict] = []
 
     isolated, iso_dbg = _digit_crop_from_components(pil_crop)
+    expected_digits = _estimate_digit_count_from_isolated_crop(isolated)
 
     def _run_variants(img: Image.Image, label_prefix: str) -> list[tuple[int, dict]]:
         candidates: list[tuple[int, dict]] = []
@@ -380,7 +463,7 @@ def _try_read_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
             for psm, oem in ((7, 1), (8, 1), (7, 3)):
                 cfg = f"--oem {oem} --psm {psm} -c tessedit_char_whitelist=0123456789Il|"
                 raw = pytesseract.image_to_string(prep, config=cfg).strip()
-                val = _parse_int(raw)
+                val = _parse_int_with_expected_len(raw, expected_digits)
 
                 row = {
                     "mode": mode,
@@ -390,6 +473,7 @@ def _try_read_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
                     "dilate": prep_cfg["dilate"],
                     "raw": raw,
                     "value": val,
+                    "expected_digits": expected_digits,
                 }
                 attempts.append(row)
 
@@ -415,7 +499,7 @@ def _try_read_int(pil_crop: Image.Image) -> tuple[int | None, dict]:
                 ("hsv_psm8", "--oem 1 --psm 8 -c tessedit_char_whitelist=0123456789Il|"),
             ):
                 raw = pytesseract.image_to_string(prep_hsv, config=cfg).strip()
-                val = _parse_int(raw)
+                val = _parse_int_with_expected_len(raw, expected_digits)
 
                 row = {
                     "mode": kind,
